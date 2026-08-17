@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V23 VISUAL
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -35,9 +36,11 @@ CSS_APP = """
     }
 
     .block-container {
-        max-width: 1800px;
-        padding-top: 1.2rem;
+        max-width: 98vw;
+        padding-top: 1rem;
+        padding-right: 1rem;
         padding-bottom: 3rem;
+        padding-left: 1rem;
     }
 
     .gex-header {
@@ -183,7 +186,20 @@ def percentual_br(value: float) -> str:
 
 
 def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
+    """
+    Tabela principal no formato de radar, próxima da filosofia do painel GARCH.
+
+    Regras preservadas:
+    - 30, 60, 90 e 180 dias aparecem simultaneamente;
+    - a triagem considera somente a Wall W1 principal mais próxima entre
+      Call W1, Put W1 ou confluência Call/Put W1;
+    - W2/W3 continuam apenas no detalhe do ativo;
+    - Qualidade NÃO aparece na tabela principal;
+    - cada horizonte mostra, em uma única célula, o que importa para a triagem:
+      status de proximidade + tipo da W1 + nível + distância percentual.
+    """
     rows = []
+
     for _, row in summary.iterrows():
         out = {
             "Ativo": row["Ativo"],
@@ -191,37 +207,32 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
             "Setor": row["Setor"],
             "Preço": moeda_br(row["Preço"]),
         }
+
         for horizon_label in core.HORIZON_ORDER:
             short = core.HORIZON_SHORT[horizon_label]
-            wall_label = row.get(f"{short} Wall", "N/D")
+
+            wall_label = str(row.get(f"{short} Wall", "N/D"))
             wall_price = row.get(f"{short} Wall Preço", np.nan)
             dist = row.get(f"{short} Dist %", np.nan)
-            status = row.get(f"{short} Status", "SEM DADOS")
-            quality = row.get(f"{short} Qualidade", np.nan)
-            classe = row.get(f"{short} Classe", "N/D")
+            status = str(row.get(f"{short} Status", "SEM DADOS"))
 
             if np.isfinite(wall_price):
-                wall_text = f"{wall_label} • {moeda_br(wall_price)}"
+                out[horizon_label] = (
+                    f"{status} • {wall_label} • "
+                    f"{moeda_br(wall_price)} • {percentual_br(dist)}"
+                )
             else:
-                wall_text = str(wall_label)
-
-            quality_text = (
-                f"Q {core.br_number(quality, 1)} — {classe}"
-                if np.isfinite(quality)
-                else "Q N/D"
-            )
-
-            out[f"{short} Wall W1"] = wall_text
-            out[f"{short} Dist."] = percentual_br(dist)
-            out[f"{short} Status / Qualidade"] = f"{status} • {quality_text}"
+                out[horizon_label] = "SEM DADOS"
 
         rows.append(out)
+
     return pd.DataFrame(rows)
 
 
 def estilizar_tabela(df: pd.DataFrame):
     def status_style(value: Any) -> str:
         text = str(value)
+
         if "EM CIMA DO NÍVEL" in text:
             return "background-color:#dcfce7;color:#166534;font-weight:800;"
         if "MUITO PRÓXIMO" in text:
@@ -232,20 +243,66 @@ def estilizar_tabela(df: pd.DataFrame):
             return "background-color:#f1f5f9;color:#475569;font-weight:700;"
         if "SEM DADOS" in text:
             return "background-color:#e5e7eb;color:#64748b;font-weight:700;"
+
         return ""
 
     styler = df.style
-    status_cols = [c for c in df.columns if "Status / Qualidade" in c]
-    if status_cols:
-        styler = styler.map(status_style, subset=status_cols)
+
+    horizon_cols = [
+        horizon_label
+        for horizon_label in core.HORIZON_ORDER
+        if horizon_label in df.columns
+    ]
+
+    if horizon_cols:
+        styler = styler.map(
+            status_style,
+            subset=horizon_cols,
+        )
+
     styler = styler.set_properties(
         **{
             "text-align": "center",
             "white-space": "nowrap",
-            "font-size": "12px",
+            "font-size": "11px",
         }
     )
+
     return styler
+
+
+def montar_column_config() -> dict:
+    """Larguras explícitas para evitar informação escondida/cortada."""
+    config = {
+        "Ativo": st.column_config.TextColumn(
+            "Ativo",
+            width="small",
+        ),
+        "Empresa": st.column_config.TextColumn(
+            "Empresa",
+            width="medium",
+        ),
+        "Setor": st.column_config.TextColumn(
+            "Setor",
+            width="medium",
+        ),
+        "Preço": st.column_config.TextColumn(
+            "Preço",
+            width="small",
+        ),
+    }
+
+    for horizon_label in core.HORIZON_ORDER:
+        config[horizon_label] = st.column_config.TextColumn(
+            horizon_label,
+            width="large",
+            help=(
+                "Status de proximidade da Wall W1 principal mais próxima, "
+                "tipo da Wall, nível e distância percentual."
+            ),
+        )
+
+    return config
 
 
 def extrair_linhas_selecionadas(evento: Any) -> list[int]:
@@ -270,7 +327,7 @@ def renderizar_cabecalho() -> None:
             <div class="gex-title-main">GEX RADAR BRASIL — 30 • 60 • 90 • 180 DIAS</div>
             <div class="gex-subtitle-main">
                 Base B3: {reference_date} • 21 ativos B3 monitorados + Bitcoin visível como N/D
-                • Call/Put W1 na triagem • W2/W3 no detalhe • Probability Engine removido
+                • W1 na triagem principal • W2/W3 no detalhe
             </div>
         </div>
         """,
@@ -291,14 +348,23 @@ def renderizar_tabela() -> None:
     renderizar_cabecalho()
 
     coluna_botao, coluna_info = st.columns([1, 4])
+
     with coluna_botao:
-        if st.button("🔄 ATUALIZAR DADOS B3", type="primary", use_container_width=True):
+        if st.button(
+            "🔄 ATUALIZAR DADOS B3",
+            type="primary",
+            use_container_width=True,
+        ):
             atualizar_radar()
+
     with coluna_info:
         st.markdown(
             """
             <div class="instruction-box">
-                A tabela já compara 30, 60, 90 e 180 dias simultaneamente.
+                30, 60, 90 e 180 dias aparecem simultaneamente.
+                Cada coluna de horizonte mostra se o preço está em cima, muito próximo,
+                próximo ou distante da Wall W1 principal, além de indicar se ela é
+                Call W1, Put W1 ou confluência Call/Put W1, o nível e a distância.
                 Clique em qualquer linha para abrir os detalhes do ativo.
             </div>
             """,
@@ -311,8 +377,12 @@ def renderizar_tabela() -> None:
 
     evento = st.dataframe(
         styler,
+        column_config=montar_column_config(),
         width="stretch",
-        height=min(960, 100 + 35 * len(display_df)),
+        height=min(
+            980,
+            100 + 35 * len(display_df),
+        ),
         hide_index=True,
         key=f"gex_tabela_{st.session_state.versao_tabela}",
         on_select="rerun",
@@ -320,21 +390,29 @@ def renderizar_tabela() -> None:
         row_height=34,
     )
 
-    selecionadas = extrair_linhas_selecionadas(evento)
+    selecionadas = extrair_linhas_selecionadas(
+        evento
+    )
+
     if selecionadas:
         posicao = selecionadas[0]
+
         if 0 <= posicao < len(summary):
-            st.session_state.ativo_selecionado = str(summary.iloc[posicao]["Ativo"])
+            st.session_state.ativo_selecionado = str(
+                summary.iloc[posicao]["Ativo"]
+            )
             st.rerun()
 
     st.markdown(
         """
         <div class="gex-note-streamlit">
-            <b>Ordenação:</b> menor distância absoluta a uma Wall W1 entre os quatro horizontes;
-            em empate, maior qualidade do mesmo recorte. W2/W3 não entram nessa ordenação.
+            <b>Leitura do radar:</b> cada horizonte mostra apenas a Wall W1 principal
+            mais próxima entre Call W1, Put W1 ou confluência Call/Put W1.
+            W2/W3 continuam disponíveis no detalhe do ativo.
             <br><b>Proximidade:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
             ≤2,00% PRÓXIMO • acima de 2,00% DISTANTE.
-            <br>A proximidade é estrutural e não representa compra, venda, suporte ou resistência.
+            <br>A classificação mede somente distância ao nível estrutural.
+            Não representa compra, venda, suporte ou resistência.
         </div>
         """,
         unsafe_allow_html=True,
@@ -377,6 +455,29 @@ def expiries_asset(asset: str) -> list[pd.Timestamp]:
     return [pd.Timestamp(v) for v in values]
 
 
+def renderizar_html(fragmento: str) -> None:
+    """
+    Renderiza os blocos HTML produzidos pelo motor como HTML real.
+
+    O motor retorna strings multilinha indentadas. O Streamlit/Markdown pode
+    interpretar quatro espaços iniciais como bloco de código. Por isso o texto
+    é desindentado e limpo antes da renderização com unsafe_allow_html=True.
+    Isso corrige o problema em que apareciam tags como <div class=...> na tela.
+    """
+    if fragmento is None:
+        return
+
+    html = textwrap.dedent(str(fragmento)).strip()
+
+    if not html:
+        return
+
+    st.markdown(
+        html,
+        unsafe_allow_html=True,
+    )
+
+
 def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view: str) -> None:
     chain, metrics = core.get_metrics(asset, horizon_label, exact_expiry)
 
@@ -389,9 +490,13 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         st.info("Nenhum dado suficiente para esse recorte.")
         return
 
-    st.markdown(
-        core.cards_html(asset, metrics, horizon_label, exact_expiry),
-        unsafe_allow_html=True,
+    renderizar_html(
+        core.cards_html(
+            asset,
+            metrics,
+            horizon_label,
+            exact_expiry,
+        )
     )
 
     if selected_view == "Preço + Níveis":
@@ -411,7 +516,9 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         else:
             st.pyplot(fig, use_container_width=True)
             core.plt.close(fig)
-        st.markdown(core.walls_detail_html(metrics), unsafe_allow_html=True)
+        renderizar_html(
+            core.walls_detail_html(metrics)
+        )
 
     elif selected_view == "Net GEX / Strike":
         fig = core.plot_net_gex_by_strike(asset, metrics)
@@ -434,16 +541,25 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
             core.plt.close(fig)
 
     elif selected_view == "Séries":
-        st.markdown(core.series_table_html(chain), unsafe_allow_html=True)
+        renderizar_html(
+            core.series_table_html(chain)
+        )
 
     elif selected_view == "Qualidade":
-        st.markdown(core.quality_html(metrics), unsafe_allow_html=True)
+        renderizar_html(
+            core.quality_html(metrics)
+        )
 
 
 def renderizar_detalhes(asset: str) -> None:
     topo_esquerda, topo_direita = st.columns([1, 4])
     with topo_esquerda:
-        if st.button("← FECHAR DETALHES", type="primary", use_container_width=True):
+        if st.button(
+            "✖ FECHAR ATIVO",
+            type="primary",
+            use_container_width=True,
+            key="fechar_ativo_top",
+        ):
             fechar_detalhes()
     with topo_direita:
         info = core.ASSET_INFO.get(asset, {"empresa": asset, "setor": "—"})
@@ -497,18 +613,37 @@ def renderizar_detalhes(asset: str) -> None:
                     unsafe_allow_html=True,
                 )
                 if metrics is not None:
-                    st.markdown(
-                        core.cards_html(asset, metrics, horizon_label, None),
-                        unsafe_allow_html=True,
+                    renderizar_html(
+                        core.cards_html(
+                            asset,
+                            metrics,
+                            horizon_label,
+                            None,
+                        )
                     )
         else:
             chain, metrics = core.get_metrics(asset, "180 dias", exact_expiry)
             if metrics is not None:
-                st.markdown(
-                    core.cards_html(asset, metrics, "180 dias", exact_expiry),
-                    unsafe_allow_html=True,
+                renderizar_html(
+                    core.cards_html(
+                        asset,
+                        metrics,
+                        "180 dias",
+                        exact_expiry,
+                    )
                 )
-        st.markdown(core.methodology_html(), unsafe_allow_html=True)
+
+        renderizar_html(
+            core.methodology_html()
+        )
+
+        if st.button(
+            "✖ FECHAR ATIVO",
+            use_container_width=True,
+            key="fechar_ativo_bottom_method",
+        ):
+            fechar_detalhes()
+
         return
 
     if exact_expiry is not None:
@@ -516,11 +651,36 @@ def renderizar_detalhes(asset: str) -> None:
             "Modo de investigação por vencimento específico: o cálculo abaixo usa somente "
             "as séries desse vencimento dentro do universo máximo de 180 dias."
         )
-        renderizar_slice(asset, "180 dias", exact_expiry, selected_view)
+        renderizar_slice(
+            asset,
+            "180 dias",
+            exact_expiry,
+            selected_view,
+        )
+
+        if st.button(
+            "✖ FECHAR ATIVO",
+            use_container_width=True,
+            key="fechar_ativo_bottom_expiry",
+        ):
+            fechar_detalhes()
+
         return
 
     for horizon_label in core.HORIZON_ORDER:
-        renderizar_slice(asset, horizon_label, None, selected_view)
+        renderizar_slice(
+            asset,
+            horizon_label,
+            None,
+            selected_view,
+        )
+
+    if st.button(
+        "✖ FECHAR ATIVO",
+        use_container_width=True,
+        key="fechar_ativo_bottom",
+    ):
+        fechar_detalhes()
 
 
 # ============================================================
