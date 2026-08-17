@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V30 FINAL AUDITADO
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V31 DETALHE LIMPO — AUDITADO
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -497,6 +497,52 @@ def renderizar_html(fragmento: str) -> None:
         )
 
 
+def cards_sem_leitura_rapida(
+    asset: str,
+    metrics: dict,
+    horizon_label: str,
+    exact_expiry,
+) -> str:
+    """
+    Mantém o cabeçalho do recorte e os seis cards principais produzidos pelo motor,
+    mas não exibe o bloco "Leitura Rápida" no detalhe do ativo.
+
+    Importante: nenhuma métrica é recalculada ou descartada. A função altera apenas
+    a apresentação do HTML retornado por core.cards_html(). As Walls W1/W2/W3,
+    Gross Gamma, Net GEX Proxy, qualidade, séries e demais cálculos permanecem no
+    motor e no detalhe apropriado.
+    """
+    html = str(
+        core.cards_html(
+            asset,
+            metrics,
+            horizon_label,
+            exact_expiry,
+        )
+    )
+
+    inicio = html.find('<div class="gex-quick">')
+    fim = html.find('<div class="gex-grid">', inicio) if inicio >= 0 else -1
+
+    if inicio >= 0 and fim > inicio:
+        html = html[:inicio] + html[fim:]
+
+    return html
+
+
+def renderizar_grafico(fig) -> None:
+    """
+    Exibe os gráficos um pouco menores e centralizados, conforme solicitado.
+    Usa aproximadamente 86% da largura útil e não altera nenhuma informação do gráfico.
+    """
+    if fig is None:
+        return
+
+    _margem_esquerda, coluna_grafico, _margem_direita = st.columns([0.7, 8.6, 0.7])
+    with coluna_grafico:
+        st.pyplot(fig, use_container_width=True)
+
+
 def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view: str) -> None:
     chain, metrics = core.get_metrics(asset, horizon_label, exact_expiry)
 
@@ -510,7 +556,7 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         return
 
     renderizar_html(
-        core.cards_html(
+        cards_sem_leitura_rapida(
             asset,
             metrics,
             horizon_label,
@@ -533,7 +579,7 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
                 "Os cálculos GEX e as Walls continuam disponíveis."
             )
         else:
-            st.pyplot(fig, use_container_width=True)
+            renderizar_grafico(fig)
             core.plt.close(fig)
         renderizar_html(
             core.walls_detail_html(metrics)
@@ -542,13 +588,13 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
     elif selected_view == "Net GEX / Strike":
         fig = core.plot_net_gex_by_strike(asset, metrics)
         if fig is not None:
-            st.pyplot(fig, use_container_width=True)
+            renderizar_grafico(fig)
             core.plt.close(fig)
 
     elif selected_view == "Gross Gamma":
         fig = core.plot_gross_gamma_calls_puts(asset, metrics)
         if fig is not None:
-            st.pyplot(fig, use_container_width=True)
+            renderizar_grafico(fig)
             core.plt.close(fig)
 
     elif selected_view == "Vencimentos":
@@ -556,7 +602,7 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         if fig is None:
             st.info("Não há dados suficientes para o gráfico por vencimento.")
         else:
-            st.pyplot(fig, use_container_width=True)
+            renderizar_grafico(fig)
             core.plt.close(fig)
 
     elif selected_view == "Séries":
@@ -586,7 +632,7 @@ def renderizar_detalhes(asset: str) -> None:
             f"""
             <div class="instruction-box">
                 <b>{asset} — {info['empresa']}</b> • {info['setor']} •
-                os quatro horizontes são exibidos em sequência, sem seletor de horizonte. W1/W2/W3 permanecem disponíveis no detalhe e nos gráficos.
+                os quatro horizontes são exibidos em sequência. W1/W2/W3 permanecem disponíveis no detalhe e nos gráficos.
             </div>
             """,
             unsafe_allow_html=True,
@@ -602,14 +648,13 @@ def renderizar_detalhes(asset: str) -> None:
     expiries = expiries_asset(asset)
     expiry_options = [None] + expiries
 
-    col_view, col_expiry = st.columns([2, 1])
-    with col_view:
-        selected_view = st.radio(
-            "Visualização",
-            VIEW_OPTIONS,
-            horizontal=True,
-            key=f"view_{asset}",
-        )
+    # Uso diário do detalhe: mostra diretamente Preço + Níveis.
+    # Os motores e funções auxiliares de Net GEX/Strike, Gross Gamma, Vencimentos,
+    # Séries, Qualidade e Metodologia continuam preservados no código e no core;
+    # apenas o seletor visual foi retirado da tela para reduzir poluição.
+    selected_view = "Preço + Níveis"
+
+    coluna_vazia, col_expiry = st.columns([3, 1])
     with col_expiry:
         exact_expiry = st.selectbox(
             "Vencimento específico",
@@ -633,7 +678,7 @@ def renderizar_detalhes(asset: str) -> None:
                 )
                 if metrics is not None:
                     renderizar_html(
-                        core.cards_html(
+                        cards_sem_leitura_rapida(
                             asset,
                             metrics,
                             horizon_label,
@@ -644,7 +689,7 @@ def renderizar_detalhes(asset: str) -> None:
             chain, metrics = core.get_metrics(asset, "180 dias", exact_expiry)
             if metrics is not None:
                 renderizar_html(
-                    core.cards_html(
+                    cards_sem_leitura_rapida(
                         asset,
                         metrics,
                         "180 dias",
