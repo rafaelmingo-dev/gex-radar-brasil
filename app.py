@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V25 PADRÃO GARCH
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V30 FINAL AUDITADO
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-import textwrap
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -35,25 +33,36 @@ CSS_APP = """
         color: #e5e7eb;
     }
 
+    header[data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+    }
+
     .block-container {
-        max-width: 100%;
-        padding-top: 1.25rem;
-        padding-right: 1rem;
-        padding-bottom: 2rem;
-        padding-left: 1rem;
+        max-width: 100vw !important;
+        width: 100% !important;
+        padding-top: 0.65rem !important;
+        padding-right: 0.35rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 0.35rem !important;
+        margin-top: 0 !important;
     }
 
     .gex-header {
         border: 1px solid #334155;
         border-radius: 14px;
-        padding: 18px 20px;
+        padding: 16px 18px;
         background: linear-gradient(135deg, #111827 0%, #0f172a 100%);
-        margin-bottom: 14px;
+        margin-bottom: 12px;
     }
 
     .gex-kicker {
         color: #38bdf8;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 900;
         letter-spacing: .08em;
         margin-bottom: 4px;
@@ -61,26 +70,26 @@ CSS_APP = """
 
     .gex-title-main {
         color: #f8fafc;
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 900;
-        line-height: 1.1;
+        line-height: 1.08;
     }
 
     .gex-subtitle-main {
         color: #94a3b8;
-        font-size: 12px;
-        margin-top: 8px;
-        line-height: 1.5;
+        font-size: 11px;
+        margin-top: 7px;
+        line-height: 1.45;
     }
 
     .instruction-box {
         border: 1px solid #334155;
         border-radius: 10px;
-        padding: 10px 12px;
+        padding: 9px 11px;
         background: #111827;
         color: #cbd5e1;
-        font-size: 12px;
-        min-height: 42px;
+        font-size: 11px;
+        min-height: 40px;
     }
 
     .horizon-title {
@@ -144,7 +153,7 @@ if "diagnostico_nome" not in st.session_state:
 # ============================================================
 # 3. CARGA / CACHE DA B3
 # ============================================================
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def carregar_bundle(refresh_token: int):
     # refresh_token > 0 força nova tentativa de download da sessão mais recente.
     return core.load_complete_bundle(force=refresh_token > 0)
@@ -187,17 +196,13 @@ def percentual_br(value: float) -> str:
 
 def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
     """
-    Tabela principal no padrão visual do GARCH Radar.
+    Radar principal compacto, pensado para caber integralmente no desktop.
 
-    Regras preservadas:
-    - 30, 60, 90 e 180 dias aparecem simultaneamente;
-    - a triagem considera somente a Wall W1 principal mais próxima entre
-      Call W1, Put W1 ou confluência Call/Put W1;
-    - W2/W3 continuam apenas no detalhe do ativo;
-    - Qualidade NÃO aparece na tabela principal;
-    - cada horizonte é separado em três colunas curtas:
-      Nível W1, Distância e Status;
-    - o Status identifica também se a W1 é Call, Put ou confluência.
+    Cada horizonte usa apenas duas colunas:
+    - W1: identifica Call W1, Put W1 ou confluência Call/Put W1 e mostra o nível;
+    - Situação: mostra proximidade e distância percentual.
+
+    W2/W3 permanecem integralmente disponíveis no detalhe do ativo.
     """
     rows = []
 
@@ -210,33 +215,27 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
         }
 
         for horizon_label in core.HORIZON_ORDER:
-            short = core.HORIZON_SHORT[horizon_label].upper()
+            short_raw = core.HORIZON_SHORT[horizon_label]
+            short = short_raw.upper()
 
-            wall_label = str(row.get(
-                f"{core.HORIZON_SHORT[horizon_label]} Wall",
-                "N/D",
-            ))
-            wall_price = row.get(
-                f"{core.HORIZON_SHORT[horizon_label]} Wall Preço",
-                np.nan,
-            )
-            dist = row.get(
-                f"{core.HORIZON_SHORT[horizon_label]} Dist %",
-                np.nan,
-            )
-            status = str(row.get(
-                f"{core.HORIZON_SHORT[horizon_label]} Status",
-                "SEM DADOS",
-            ))
+            wall_label = str(row.get(f"{short_raw} Wall", "N/D"))
+            wall_price = row.get(f"{short_raw} Wall Preço", np.nan)
+            dist = row.get(f"{short_raw} Dist %", np.nan)
+            status = str(row.get(f"{short_raw} Status", "SEM DADOS"))
 
             if np.isfinite(wall_price):
-                out[f"{short} · Nível W1"] = moeda_br(wall_price)
-                out[f"{short} · Distância"] = percentual_br(dist)
-                out[f"{short} · Status"] = f"{status} • {wall_label}"
+                out[f"{short} · W1"] = f"{wall_label} • {moeda_br(wall_price).replace('R$ ', 'R$')}"
+
+                status_curto = status
+                if status == "EM CIMA DO NÍVEL":
+                    status_curto = "EM CIMA"
+                elif status == "MUITO PRÓXIMO":
+                    status_curto = "MUITO PRÓX."
+
+                out[f"{short} · Situação"] = f"{status_curto} • {percentual_br(dist)}"
             else:
-                out[f"{short} · Nível W1"] = "—"
-                out[f"{short} · Distância"] = "—"
-                out[f"{short} · Status"] = "SEM DADOS"
+                out[f"{short} · W1"] = "—"
+                out[f"{short} · Situação"] = "SEM DADOS"
 
         rows.append(out)
 
@@ -245,57 +244,42 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
 
 def estilizar_tabela(df: pd.DataFrame):
     """
-    Mantém a tabela neutra e colore somente as colunas de Status,
-    como no GARCH Radar. As cores indicam grau de atenção por proximidade,
-    nunca compra, venda, suporte ou resistência.
+    Colore somente a coluna Situação de cada horizonte.
+    W1, preço, empresa e setor permanecem neutros para reduzir poluição visual.
     """
     def status_style(value: Any) -> str:
         text = str(value)
 
-        if "EM CIMA DO NÍVEL" in text:
+        if text.startswith("EM CIMA"):
             return "background-color:#fee2e2;color:#991b1b;font-weight:900;"
-        if "MUITO PRÓXIMO" in text:
+        if text.startswith("MUITO PRÓX."):
             return "background-color:#ffedd5;color:#9a3412;font-weight:900;"
-        if "PRÓXIMO" in text:
+        if text.startswith("PRÓXIMO"):
             return "background-color:#fef3c7;color:#92400e;font-weight:900;"
-        if "DISTANTE" in text:
+        if text.startswith("DISTANTE"):
             return "background-color:#f1f5f9;color:#475569;font-weight:800;"
-        if "SEM DADOS" in text:
+        if text.startswith("SEM DADOS"):
             return "background-color:#e5e7eb;color:#64748b;font-weight:800;"
 
         return ""
 
     styler = df.style
 
-    status_cols = [
-        coluna
-        for coluna in df.columns
-        if coluna.endswith("· Status")
-    ]
+    status_cols = [coluna for coluna in df.columns if coluna.endswith("· Situação")]
 
     if status_cols:
-        styler = styler.map(
-            status_style,
-            subset=status_cols,
-        )
+        styler = styler.map(status_style, subset=status_cols)
 
-    colunas_destaque = [
-        coluna
-        for coluna in ["Ativo", "Preço"]
-        if coluna in df.columns
-    ]
+    colunas_destaque = [coluna for coluna in ["Ativo", "Preço"] if coluna in df.columns]
 
     if colunas_destaque:
-        styler = styler.set_properties(
-            subset=colunas_destaque,
-            **{"font-weight": "800"},
-        )
+        styler = styler.set_properties(subset=colunas_destaque, **{"font-weight": "800"})
 
     styler = styler.set_properties(
         **{
             "text-align": "center",
             "white-space": "nowrap",
-            "font-size": "12px",
+            "font-size": "10.5px",
         }
     )
 
@@ -304,50 +288,29 @@ def estilizar_tabela(df: pd.DataFrame):
 
 def montar_column_config() -> dict:
     """
-    Configuração de largura inspirada na tabela do GARCH Radar:
-    informações curtas em colunas próprias e Status com espaço suficiente.
+    Larguras explícitas em pixels para que nomes e quatro horizontes apareçam completos
+    no desktop sem depender de rolagem horizontal.
     """
     config = {
-        "Ativo": st.column_config.TextColumn(
-            "Ativo",
-            width="small",
-        ),
-        "Empresa": st.column_config.TextColumn(
-            "Empresa",
-            width="medium",
-        ),
-        "Setor": st.column_config.TextColumn(
-            "Setor",
-            width="medium",
-        ),
-        "Preço": st.column_config.TextColumn(
-            "Preço",
-            width="small",
-        ),
+        "Ativo": st.column_config.TextColumn("Ativo", width=72),
+        "Empresa": st.column_config.TextColumn("Empresa", width=170),
+        "Setor": st.column_config.TextColumn("Setor", width=150),
+        "Preço": st.column_config.TextColumn("Preço", width=88),
     }
 
     for horizon_label in core.HORIZON_ORDER:
         short = core.HORIZON_SHORT[horizon_label].upper()
 
-        config[f"{short} · Nível W1"] = st.column_config.TextColumn(
-            f"{short} · Nível W1",
-            width="small",
-            help="Preço da Wall W1 principal mais próxima do spot neste horizonte.",
+        config[f"{short} · W1"] = st.column_config.TextColumn(
+            f"{short} · W1",
+            width=150,
+            help="Call W1, Put W1 ou confluência Call/Put W1 e o nível principal deste horizonte.",
         )
 
-        config[f"{short} · Distância"] = st.column_config.TextColumn(
-            f"{short} · Distância",
-            width="small",
-            help="Distância percentual do spot até a Wall W1 principal mais próxima.",
-        )
-
-        config[f"{short} · Status"] = st.column_config.TextColumn(
-            f"{short} · Status",
-            width="medium",
-            help=(
-                "Classificação de proximidade e identificação da Wall: "
-                "Call W1, Put W1 ou confluência Call/Put W1."
-            ),
+        config[f"{short} · Situação"] = st.column_config.TextColumn(
+            f"{short} · Situação",
+            width=128,
+            help="Classificação de proximidade e distância percentual até a W1 principal.",
         )
 
     return config
@@ -389,6 +352,7 @@ def atualizar_radar() -> None:
     st.session_state.refresh_token += 1
     st.session_state.diagnostico_bytes = None
     st.session_state.diagnostico_nome = None
+    carregar_bundle.clear()
     st.rerun()
 
 
@@ -409,8 +373,8 @@ def renderizar_tabela() -> None:
         st.markdown(
             """
             <div class="instruction-box">
-                30, 60, 90 e 180 dias já estão comparados na tabela.
-                Clique em qualquer linha para abrir os detalhes do ativo.
+                30, 60, 90 e 180 dias lado a lado • W1 no radar principal • W1/W2/W3 ao abrir o ativo.
+                Clique em uma linha para abrir o ativo.
             </div>
             """,
             unsafe_allow_html=True,
@@ -456,7 +420,7 @@ def renderizar_tabela() -> None:
             do mesmo recorte.
             <br><b>Status:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
             ≤2,00% PRÓXIMO • acima de 2,00% DISTANTE.
-            <br>Somente W1 participa da triagem principal. W2/W3 permanecem no detalhe.
+            <br><b>Radar:</b> somente W1. <b>Detalhe do ativo:</b> W1, W2 e W3 completos.
             As cores indicam apenas proximidade estrutural, não compra, venda, suporte ou resistência.
         </div>
         """,
@@ -502,25 +466,35 @@ def expiries_asset(asset: str) -> list[pd.Timestamp]:
 
 def renderizar_html(fragmento: str) -> None:
     """
-    Renderiza os blocos HTML produzidos pelo motor como HTML real.
+    Renderiza como HTML real os blocos produzidos pelo motor.
 
-    O motor retorna strings multilinha indentadas. O Streamlit/Markdown pode
-    interpretar quatro espaços iniciais como bloco de código. Por isso o texto
-    é desindentado e limpo antes da renderização com unsafe_allow_html=True.
-    Isso corrige o problema em que apareciam tags como <div class=...> na tela.
+    A versão principal usa st.html(), evitando que o parser Markdown interprete
+    a indentação interna dos <div> como bloco de código. Há um fallback seguro:
+    se st.html() não estiver disponível por qualquer motivo, cada linha é
+    desindentada antes de seguir para st.markdown(..., unsafe_allow_html=True).
+
+    Isso preserva cards, Leitura Rápida, tabelas de Walls, Séries, Qualidade e
+    Metodologia sem exibir tags HTML como texto na tela.
     """
     if fragmento is None:
         return
 
-    html = textwrap.dedent(str(fragmento)).strip()
+    html = str(fragmento).strip()
 
     if not html:
         return
 
-    st.markdown(
-        html,
-        unsafe_allow_html=True,
-    )
+    try:
+        st.html(html)
+    except Exception:
+        html_fallback = "\n".join(
+            linha.lstrip()
+            for linha in html.splitlines()
+        )
+        st.markdown(
+            html_fallback,
+            unsafe_allow_html=True,
+        )
 
 
 def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view: str) -> None:
@@ -612,7 +586,7 @@ def renderizar_detalhes(asset: str) -> None:
             f"""
             <div class="instruction-box">
                 <b>{asset} — {info['empresa']}</b> • {info['setor']} •
-                os quatro horizontes são exibidos em sequência, sem seletor de horizonte.
+                os quatro horizontes são exibidos em sequência, sem seletor de horizonte. W1/W2/W3 permanecem disponíveis no detalhe e nos gráficos.
             </div>
             """,
             unsafe_allow_html=True,
