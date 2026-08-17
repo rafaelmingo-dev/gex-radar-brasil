@@ -1,0 +1,8 @@
+streamlit>=1.48,<2.0
+pandas>=2.2,<3.0
+numpy>=1.26,<3.0
+scipy>=1.13,<2.0
+matplotlib>=3.8,<4.0
+mplfinance>=0.12.10b0,<0.13
+requests>=2.31,<3.0
+lxml>=5.2,<7.0
