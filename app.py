@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V23 VISUAL
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V25 PADRÃO GARCH
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -36,10 +36,10 @@ CSS_APP = """
     }
 
     .block-container {
-        max-width: 98vw;
-        padding-top: 1rem;
+        max-width: 100%;
+        padding-top: 1.25rem;
         padding-right: 1rem;
-        padding-bottom: 3rem;
+        padding-bottom: 2rem;
         padding-left: 1rem;
     }
 
@@ -187,7 +187,7 @@ def percentual_br(value: float) -> str:
 
 def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
     """
-    Tabela principal no formato de radar, próxima da filosofia do painel GARCH.
+    Tabela principal no padrão visual do GARCH Radar.
 
     Regras preservadas:
     - 30, 60, 90 e 180 dias aparecem simultaneamente;
@@ -195,8 +195,9 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
       Call W1, Put W1 ou confluência Call/Put W1;
     - W2/W3 continuam apenas no detalhe do ativo;
     - Qualidade NÃO aparece na tabela principal;
-    - cada horizonte mostra, em uma única célula, o que importa para a triagem:
-      status de proximidade + tipo da W1 + nível + distância percentual.
+    - cada horizonte é separado em três colunas curtas:
+      Nível W1, Distância e Status;
+    - o Status identifica também se a W1 é Call, Put ou confluência.
     """
     rows = []
 
@@ -209,20 +210,33 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
         }
 
         for horizon_label in core.HORIZON_ORDER:
-            short = core.HORIZON_SHORT[horizon_label]
+            short = core.HORIZON_SHORT[horizon_label].upper()
 
-            wall_label = str(row.get(f"{short} Wall", "N/D"))
-            wall_price = row.get(f"{short} Wall Preço", np.nan)
-            dist = row.get(f"{short} Dist %", np.nan)
-            status = str(row.get(f"{short} Status", "SEM DADOS"))
+            wall_label = str(row.get(
+                f"{core.HORIZON_SHORT[horizon_label]} Wall",
+                "N/D",
+            ))
+            wall_price = row.get(
+                f"{core.HORIZON_SHORT[horizon_label]} Wall Preço",
+                np.nan,
+            )
+            dist = row.get(
+                f"{core.HORIZON_SHORT[horizon_label]} Dist %",
+                np.nan,
+            )
+            status = str(row.get(
+                f"{core.HORIZON_SHORT[horizon_label]} Status",
+                "SEM DADOS",
+            ))
 
             if np.isfinite(wall_price):
-                out[horizon_label] = (
-                    f"{status} • {wall_label} • "
-                    f"{moeda_br(wall_price)} • {percentual_br(dist)}"
-                )
+                out[f"{short} · Nível W1"] = moeda_br(wall_price)
+                out[f"{short} · Distância"] = percentual_br(dist)
+                out[f"{short} · Status"] = f"{status} • {wall_label}"
             else:
-                out[horizon_label] = "SEM DADOS"
+                out[f"{short} · Nível W1"] = "—"
+                out[f"{short} · Distância"] = "—"
+                out[f"{short} · Status"] = "SEM DADOS"
 
         rows.append(out)
 
@@ -230,41 +244,58 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
 
 
 def estilizar_tabela(df: pd.DataFrame):
+    """
+    Mantém a tabela neutra e colore somente as colunas de Status,
+    como no GARCH Radar. As cores indicam grau de atenção por proximidade,
+    nunca compra, venda, suporte ou resistência.
+    """
     def status_style(value: Any) -> str:
         text = str(value)
 
         if "EM CIMA DO NÍVEL" in text:
-            return "background-color:#dcfce7;color:#166534;font-weight:800;"
+            return "background-color:#fee2e2;color:#991b1b;font-weight:900;"
         if "MUITO PRÓXIMO" in text:
-            return "background-color:#fef3c7;color:#92400e;font-weight:800;"
+            return "background-color:#ffedd5;color:#9a3412;font-weight:900;"
         if "PRÓXIMO" in text:
-            return "background-color:#fff7ed;color:#9a3412;font-weight:800;"
+            return "background-color:#fef3c7;color:#92400e;font-weight:900;"
         if "DISTANTE" in text:
-            return "background-color:#f1f5f9;color:#475569;font-weight:700;"
+            return "background-color:#f1f5f9;color:#475569;font-weight:800;"
         if "SEM DADOS" in text:
-            return "background-color:#e5e7eb;color:#64748b;font-weight:700;"
+            return "background-color:#e5e7eb;color:#64748b;font-weight:800;"
 
         return ""
 
     styler = df.style
 
-    horizon_cols = [
-        horizon_label
-        for horizon_label in core.HORIZON_ORDER
-        if horizon_label in df.columns
+    status_cols = [
+        coluna
+        for coluna in df.columns
+        if coluna.endswith("· Status")
     ]
 
-    if horizon_cols:
+    if status_cols:
         styler = styler.map(
             status_style,
-            subset=horizon_cols,
+            subset=status_cols,
+        )
+
+    colunas_destaque = [
+        coluna
+        for coluna in ["Ativo", "Preço"]
+        if coluna in df.columns
+    ]
+
+    if colunas_destaque:
+        styler = styler.set_properties(
+            subset=colunas_destaque,
+            **{"font-weight": "800"},
         )
 
     styler = styler.set_properties(
         **{
             "text-align": "center",
             "white-space": "nowrap",
-            "font-size": "11px",
+            "font-size": "12px",
         }
     )
 
@@ -272,7 +303,10 @@ def estilizar_tabela(df: pd.DataFrame):
 
 
 def montar_column_config() -> dict:
-    """Larguras explícitas para evitar informação escondida/cortada."""
+    """
+    Configuração de largura inspirada na tabela do GARCH Radar:
+    informações curtas em colunas próprias e Status com espaço suficiente.
+    """
     config = {
         "Ativo": st.column_config.TextColumn(
             "Ativo",
@@ -293,12 +327,26 @@ def montar_column_config() -> dict:
     }
 
     for horizon_label in core.HORIZON_ORDER:
-        config[horizon_label] = st.column_config.TextColumn(
-            horizon_label,
-            width="large",
+        short = core.HORIZON_SHORT[horizon_label].upper()
+
+        config[f"{short} · Nível W1"] = st.column_config.TextColumn(
+            f"{short} · Nível W1",
+            width="small",
+            help="Preço da Wall W1 principal mais próxima do spot neste horizonte.",
+        )
+
+        config[f"{short} · Distância"] = st.column_config.TextColumn(
+            f"{short} · Distância",
+            width="small",
+            help="Distância percentual do spot até a Wall W1 principal mais próxima.",
+        )
+
+        config[f"{short} · Status"] = st.column_config.TextColumn(
+            f"{short} · Status",
+            width="medium",
             help=(
-                "Status de proximidade da Wall W1 principal mais próxima, "
-                "tipo da Wall, nível e distância percentual."
+                "Classificação de proximidade e identificação da Wall: "
+                "Call W1, Put W1 ou confluência Call/Put W1."
             ),
         )
 
@@ -361,10 +409,7 @@ def renderizar_tabela() -> None:
         st.markdown(
             """
             <div class="instruction-box">
-                30, 60, 90 e 180 dias aparecem simultaneamente.
-                Cada coluna de horizonte mostra se o preço está em cima, muito próximo,
-                próximo ou distante da Wall W1 principal, além de indicar se ela é
-                Call W1, Put W1 ou confluência Call/Put W1, o nível e a distância.
+                30, 60, 90 e 180 dias já estão comparados na tabela.
                 Clique em qualquer linha para abrir os detalhes do ativo.
             </div>
             """,
@@ -406,13 +451,13 @@ def renderizar_tabela() -> None:
     st.markdown(
         """
         <div class="gex-note-streamlit">
-            <b>Leitura do radar:</b> cada horizonte mostra apenas a Wall W1 principal
-            mais próxima entre Call W1, Put W1 ou confluência Call/Put W1.
-            W2/W3 continuam disponíveis no detalhe do ativo.
-            <br><b>Proximidade:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
+            <b>Ordenação:</b> primeiro aparecem os ativos com menor distância absoluta
+            a uma Wall W1 em qualquer horizonte; em empate, prevalece a maior qualidade
+            do mesmo recorte.
+            <br><b>Status:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
             ≤2,00% PRÓXIMO • acima de 2,00% DISTANTE.
-            <br>A classificação mede somente distância ao nível estrutural.
-            Não representa compra, venda, suporte ou resistência.
+            <br>Somente W1 participa da triagem principal. W2/W3 permanecem no detalhe.
+            As cores indicam apenas proximidade estrutural, não compra, venda, suporte ou resistência.
         </div>
         """,
         unsafe_allow_html=True,
