@@ -4,6 +4,7 @@ from __future__ import annotations
 # GEX RADAR BRASIL — NÚCLEO MATEMÁTICO / DADOS B3
 # Baseado na V21 Multi-Horizonte validada no Google Colab.
 # Este módulo não contém interface Streamlit nem Probability Engine.
+# Recortes do radar: DTE exato 30 / 60 / 90 / 180 dias, sem acumulação.
 # ============================================================
 
 import base64
@@ -149,10 +150,11 @@ CONFLUENCIA_WALL_ATOL = 0.01
 
 # Histórico COTAHIST usado no gráfico de preço.
 # O gráfico é SINCRONIZADO ao horizonte GEX:
-#   30 dias  -> 30 pregões no gráfico + GEX calculado até 30 dias
-#   60 dias  -> 60 pregões no gráfico + GEX calculado até 60 dias
-#   90 dias  -> 90 pregões no gráfico + GEX calculado até 90 dias
-#   180 dias -> 180 pregões no gráfico + GEX calculado até 180 dias
+#   30 dias  -> 30 pregões no gráfico + GEX somente de opções com DTE = 30
+#   60 dias  -> 60 pregões no gráfico + GEX somente de opções com DTE = 60
+#   90 dias  -> 90 pregões no gráfico + GEX somente de opções com DTE = 90
+#   180 dias -> 180 pregões no gráfico + GEX somente de opções com DTE = 180
+# Os quatro recortes são independentes: não há acumulação entre horizontes.
 MAX_HISTORICO_PREGOES = MAX_DIAS_ATE_VENCIMENTO
 
 # Normalmente deixe None. Serve apenas para auditoria histórica manual.
@@ -3050,7 +3052,7 @@ def gex_scope_text(
     )
 
     return (
-        f"GEX: opções até {horizon_days} dias"
+        f"GEX: opções com DTE exato de {horizon_days} dias"
     )
 
 # ======================================================================================
@@ -3149,18 +3151,26 @@ def filter_horizon(
     frame,
     horizon_label,
 ):
+    """Recorta somente as opções com DTE exatamente igual ao horizonte.
+
+    Regra operacional definida para o radar:
+    - 30 dias  -> calendar_days == 30
+    - 60 dias  -> calendar_days == 60
+    - 90 dias  -> calendar_days == 90
+    - 180 dias -> calendar_days == 180
+
+    Os horizontes são independentes e não cumulativos. Se não houver séries com
+    DTE exatamente igual ao horizonte, o recorte fica vazio e o painel mostra N/D.
+    """
     result = frame.copy()
 
-    days = HORIZONS[
-        horizon_label
-    ]
+    days = int(
+        HORIZONS[horizon_label]
+    )
 
-    if days is not None:
-        result = result[
-            result["calendar_days"].le(days)
-        ]
-
-    return result
+    return result[
+        result["calendar_days"].eq(days)
+    ].copy()
 
 
 def filter_asset(
@@ -3174,23 +3184,24 @@ def filter_asset(
         ].eq(asset)
     ].copy()
 
-    frame = filter_horizon(
-        frame,
-        horizon_label,
-    )
-
+    # O modo de vencimento específico é uma investigação independente do radar
+    # 30/60/90/180. Por isso, quando uma data exata é escolhida, filtramos pela
+    # data de vencimento e não aplicamos também o DTE do horizonte.
     if exact_expiry is not None:
         exact_expiry = pd.Timestamp(
             exact_expiry
         )
 
-        frame = frame[
+        return frame[
             frame["maturity_date"].eq(
                 exact_expiry
             )
-        ]
+        ].copy()
 
-    return frame
+    return filter_horizon(
+        frame,
+        horizon_label,
+    )
 
 
 def aggregate_by_strike(
@@ -4841,7 +4852,7 @@ def build_export_package():
 
     metadata_panel = {
         "project": "GEX Radar Brasil",
-        "version": "V21_Multi_Horizonte",
+        "version": "V33_DTE_Exato",
         "mode": "integrated_colab",
         "reference_date": str(
             REFERENCE_DATE.date()
@@ -4850,6 +4861,13 @@ def build_export_package():
         "display_assets": DISPLAY_ASSETS,
         "btc_usd_gex": "N/D — sem cadeia de opções B3 compatível com este motor",
         "horizons": HORIZON_ORDER,
+        "horizon_selection": {
+            "30 dias": "calendar_days == 30",
+            "60 dias": "calendar_days == 60",
+            "90 dias": "calendar_days == 90",
+            "180 dias": "calendar_days == 180",
+            "cumulative": False,
+        },
         "max_base_days": MAX_BASE_DAYS,
         "risk_free_rate_assumption": RISK_FREE_RATE,
         "source_files": {
@@ -5509,7 +5527,7 @@ def cards_html(
     ]
 
     expiry_text = (
-        "Todos os vencimentos do horizonte"
+        f"DTE exato: {int(HORIZONS[horizon_label])} dias"
         if exact_expiry is None
         else pd.Timestamp(
             exact_expiry
@@ -5551,7 +5569,7 @@ def cards_html(
           <div class="gex-title">{asset}</div>
           <div class="gex-subtitle">
             {(
-                f"Horizonte GEX: {horizon_label} • Histórico: {chart_trading_days_for_horizon(horizon_label)} pregões • Vencimento: {expiry_text}"
+                f"Horizonte GEX: {horizon_label} • Histórico: {chart_trading_days_for_horizon(horizon_label)} pregões • Recorte: {expiry_text}"
                 if exact_expiry is None
                 else f"Vencimento específico: {expiry_text} • Histórico de referência: {chart_trading_days_for_horizon(horizon_label)} pregões"
             )}
@@ -6854,11 +6872,13 @@ def methodology_html():
           </p>
 
           <p>
-            <b>Multi-horizonte:</b> a mesma base de séries já calculada até 180 dias é
-            recortada automaticamente em 30, 60, 90 e 180 dias. IV e Gamma são calculados
-            uma vez por série; o painel não baixa nem recalcula os arquivos da B3 quatro
-            vezes. Cada recorte recalcula os agregados, Gross Gamma, Net GEX Proxy, Walls,
-            Assimetria e Qualidade correspondentes.
+            <b>Multi-horizonte:</b> a base mantém as séries válidas de 1 a 180 dias, mas
+            cada horizonte usa somente as opções cujo DTE em dias corridos é exatamente
+            igual ao horizonte: DTE = 30, 60, 90 ou 180. Os quatro recortes são independentes
+            e não cumulativos. IV e Gamma são calculados uma vez por série; o painel não baixa
+            nem recalcula os arquivos da B3 quatro vezes. Em cada DTE exato, o painel recalcula
+            os agregados, Gross Gamma, Net GEX Proxy, Walls, Assimetria e Qualidade. Se não
+            houver séries com o DTE exato de um horizonte, esse horizonte fica sem dados.
           </p>
 
           <p>
@@ -6899,9 +6919,10 @@ def methodology_html():
           </p>
 
           <p>
-            <b>Gráficos:</b> 30 dias mostram 30 pregões com Walls calculadas com opções
-            até 30 dias; 60 mostram 60; 90 mostram 90; 180 mostram 180. O histórico é o
-            COTAHIST público da B3 e permanece sem ajuste por inflação ou proventos.
+            <b>Gráficos:</b> 30 dias mostram 30 pregões com Walls calculadas somente com
+            opções de DTE = 30; 60 mostram 60 pregões com DTE = 60; 90 mostram 90 pregões
+            com DTE = 90; e 180 mostram 180 pregões com DTE = 180. O histórico é o COTAHIST
+            público da B3 e permanece sem ajuste por inflação ou proventos.
           </p>
 
           <p>
