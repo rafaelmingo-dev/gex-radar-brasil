@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V31 DETALHE LIMPO — AUDITADO
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V32 FINAL CONSOLIDADO
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -172,8 +172,8 @@ try:
     metadata = instalar_runtime()
 except Exception as exc:
     st.error(
-        "Não foi possível carregar o GEX Radar Brasil. "
-        "A base anterior não foi substituída por dados incompletos."
+        "Não foi possível montar uma sessão completa da B3 para o GEX Radar Brasil. "
+        "O painel não publica dados parciais ou arquivos incompletos."
     )
     st.exception(exc)
     st.stop()
