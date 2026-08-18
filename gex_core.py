@@ -438,6 +438,108 @@ def choose_latest_xml(
     )
 
 
+def choose_reference_text(files):
+    """Seleciona o arquivo de Prêmio de Referência extraído da sessão.
+
+    O PE é distribuído pela B3 em contêiner ZIP autoextraível (.ex_).
+    Depois da extração, o motor validado espera um TXT/CSV. A seleção
+    continua sendo pelo maior arquivo, como na V21, mas agora a ausência
+    do conteúdo esperado é tratada antes de aceitar a data como completa.
+    """
+    candidates = [
+        Path(path)
+        for path in files
+        if Path(path).suffix.lower() in {".txt", ".csv"}
+    ]
+
+    if not candidates:
+        raise FileNotFoundError(
+            "Nenhum TXT/CSV encontrado para Prêmio de Referência."
+        )
+
+    return max(
+        candidates,
+        key=lambda p: p.stat().st_size,
+    )
+
+
+def extract_and_validate_session(selected_paths, candidate_date):
+    """Extrai e valida semanticamente uma sessão antes de aceitá-la.
+
+    Antes desta correção, download_pregao() validava apenas se IN/PR/PE
+    eram contêineres ZIP válidos. A B3 pode disponibilizar, durante a
+    formação do fechamento, um ZIP tecnicamente válido mas ainda sem o
+    XML/TXT esperado pelo motor. Nesse caso a data era aceita e o erro
+    aparecia depois em choose_latest_xml().
+
+    Agora uma data só é considerada COMPLETA quando:
+    - IN contém pelo menos um XML de Cadastro de Instrumentos;
+    - PR contém pelo menos um XML de PriceReport;
+    - PE contém pelo menos um TXT/CSV de Prêmio de Referência.
+
+    Se qualquer conteúdo estiver ausente, a data é rejeitada e o motor
+    continua retrocedendo, sem alterar a matemática de IV/Gamma/GEX.
+    """
+    candidate_work_dir = WORK_DIR / candidate_date.isoformat()
+
+    if candidate_work_dir.exists():
+        shutil.rmtree(candidate_work_dir)
+
+    candidate_work_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    extracted = {}
+
+    for source_name, path in selected_paths.items():
+        path = Path(path)
+
+        if not valid_zip_file(path):
+            raise FileNotFoundError(
+                f"Arquivo {path.name} não é um ZIP válido para a sessão {candidate_date}."
+            )
+
+        print(f"  Validando conteúdo de {path.name}...")
+        extracted[source_name] = extract_recursive(
+            path,
+            candidate_work_dir / source_name,
+        )
+
+    instrument_xml = choose_latest_xml(
+        extracted.get("instruments", []),
+        "Cadastro de Instrumentos",
+    )
+    price_xml = choose_latest_xml(
+        extracted.get("prices", []),
+        "PriceReport",
+    )
+    reference_txt = choose_reference_text(
+        extracted.get("reference", []),
+    )
+
+    return {
+        "work_dir": candidate_work_dir,
+        "extracted": extracted,
+        "instrument_xml": instrument_xml,
+        "price_xml": price_xml,
+        "reference_txt": reference_txt,
+    }
+
+
+def invalidate_semantically_bad_cache(path):
+    """Remove apenas um cache ZIP que passou na estrutura mas falhou no conteúdo.
+
+    Isso evita que um ZIP incompleto, porém tecnicamente válido, seja reutilizado
+    indefinidamente na mesma instância do Streamlit. Um download válido posterior
+    poderá recriar o arquivo normalmente.
+    """
+    try:
+        Path(path).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 
 # ======================================================================================
 # 4.1) HISTÓRICO DE PREÇOS B3 — COTAHIST
@@ -2495,6 +2597,7 @@ def run_full_pipeline(force=False):
     session = make_session()
     selected_date = None
     selected_paths = {}
+    selected_content = None
 
     try:
         for offset in range(
@@ -2552,120 +2655,106 @@ def run_full_pipeline(force=False):
                 f"  {price_name}: {msg_pr}"
             )
 
-            if ok_in and ok_pr:
-                reference_name = (
-                    f"PE{yymmdd}.ex_"
-                )
-                reference_path = (
-                    candidate_dir
-                    / reference_name
-                )
+            if not (ok_in and ok_pr):
+                continue
 
-                ok_pe, msg_pe = download_pregao(
-                    session,
-                    reference_name,
-                    reference_path,
-                    force=force,
-                )
-                print(
-                    f"  {reference_name}: {msg_pe}"
-                )
+            reference_name = (
+                f"PE{yymmdd}.ex_"
+            )
+            reference_path = (
+                candidate_dir
+                / reference_name
+            )
 
-                # A volatilidade de referência da B3 é parte importante do
-                # motor validado: na auditoria, ela foi o fallback de grande
-                # parte das séries. Por isso selecionamos a última sessão
-                # COMPLETA, com Cadastro + PriceReport + Prêmio de Referência.
-                if ok_pe:
-                    selected_date = candidate
-                    selected_paths = {
-                        "instruments": instrument_path,
-                        "prices": price_path,
-                        "reference": reference_path,
-                    }
-                    break
+            ok_pe, msg_pe = download_pregao(
+                session,
+                reference_name,
+                reference_path,
+                force=force,
+            )
+            print(
+                f"  {reference_name}: {msg_pe}"
+            )
 
+            if not ok_pe:
                 print(
                     "  Sessão ainda incompleta para o GEX; "
                     "tentando a data anterior."
                 )
+                continue
+
+            candidate_paths = {
+                "instruments": instrument_path,
+                "prices": price_path,
+                "reference": reference_path,
+            }
+
+            # CORREÇÃO STREAMLIT / REABERTURA:
+            # não basta o contêiner ser um ZIP válido. Validamos o conteúdo
+            # esperado ANTES de aceitar a data como sessão completa.
+            try:
+                candidate_content = extract_and_validate_session(
+                    candidate_paths,
+                    candidate,
+                )
+            except Exception as exc:
+                print(
+                    "  Sessão rejeitada: arquivos compactados disponíveis, "
+                    "mas conteúdo interno incompleto/incompatível "
+                    f"({type(exc).__name__}: {exc})."
+                )
+
+                # Descarta apenas o cache semanticamente inválido da data,
+                # permitindo nova tentativa futura sem reutilizar o mesmo ZIP.
+                message = str(exc)
+                if "Cadastro de Instrumentos" in message or instrument_name in message:
+                    invalidate_semantically_bad_cache(instrument_path)
+                if "PriceReport" in message or price_name in message:
+                    invalidate_semantically_bad_cache(price_path)
+                if "Prêmio de Referência" in message or reference_name in message:
+                    invalidate_semantically_bad_cache(reference_path)
+
+                bad_work_dir = WORK_DIR / candidate.isoformat()
+                if bad_work_dir.exists():
+                    shutil.rmtree(
+                        bad_work_dir,
+                        ignore_errors=True,
+                    )
+
+                print(
+                    "  Tentando a data anterior."
+                )
+                continue
+
+            # A volatilidade de referência da B3 é parte importante do motor
+            # validado. A data só é aceita quando IN + PR + PE possuem também
+            # o conteúdo interno esperado pelo pipeline.
+            selected_date = candidate
+            selected_paths = candidate_paths
+            selected_content = candidate_content
+            break
 
     finally:
         session.close()
 
-    if selected_date is None:
+    if selected_date is None or selected_content is None:
         raise RuntimeError(
             "Não foi possível obter uma sessão completa com Cadastro de Instrumentos, "
-            "PriceReport e Prêmio de Referência dentro da janela pesquisada."
+            "PriceReport e Prêmio de Referência dentro da janela pesquisada. "
+            "Arquivos ZIP sem o conteúdo interno esperado são ignorados automaticamente."
         )
 
     print(
         f"\nData efetiva selecionada: {selected_date.isoformat()}"
     )
 
-    run_work_dir = (
-        WORK_DIR
-        / selected_date.isoformat()
-    )
-
-    if run_work_dir.exists():
-        shutil.rmtree(
-            run_work_dir
-        )
-
-    run_work_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    extracted = {}
-
-    for source_name, path in (
-        selected_paths.items()
-    ):
-        if (
-            path is not None
-            and valid_zip_file(path)
-        ):
-            print(
-                f"Extraindo {Path(path).name}..."
-            )
-            extracted[source_name] = (
-                extract_recursive(
-                    path,
-                    run_work_dir
-                    / source_name,
-                )
-            )
-        else:
-            extracted[source_name] = []
-
-    instrument_xml = choose_latest_xml(
-        extracted["instruments"],
-        "Cadastro de Instrumentos",
-    )
-    price_xml = choose_latest_xml(
-        extracted["prices"],
-        "PriceReport",
-    )
-
-    reference_candidates = [
-        Path(path)
-        for path in extracted.get(
-            "reference",
-            [],
-        )
-        if Path(path).suffix.lower()
-        in {".txt", ".csv"}
-    ]
-
-    reference_txt = (
-        max(
-            reference_candidates,
-            key=lambda p: p.stat().st_size,
-        )
-        if reference_candidates
-        else None
-    )
+    # A sessão escolhida já foi extraída e validada durante a seleção.
+    # Reutilizamos exatamente esses arquivos para evitar uma segunda extração.
+    run_work_dir = selected_content["work_dir"]
+    extracted = selected_content["extracted"]
+    instrument_xml = selected_content["instrument_xml"]
+    price_xml = selected_content["price_xml"]
+    reference_txt = selected_content["reference_txt"]
 
     print("\nLendo Cadastro de Instrumentos...")
     instruments, options = (
