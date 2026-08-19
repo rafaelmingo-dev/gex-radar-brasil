@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL â€” NÃšCLEO MATEMÃTICO / DADOS B3
+# GEX RADAR BRASIL — NÚCLEO MATEMÁTICO / DADOS B3
 # Baseado na V21 Multi-Horizonte validada no Google Colab.
-# Este mÃ³dulo nÃ£o contÃ©m interface Streamlit nem Probability Engine.
-# Recortes do radar: DTE 1â€“30 / 31â€“60 / 61â€“90 / 91â€“180 dias, sem sobreposiÃ§Ã£o.
+# Este módulo não contém interface Streamlit nem Probability Engine.
+# Recortes do radar: DTE 1–30 / 31–60 / 61–90 / 91–180 dias, sem sobreposição.
 # ============================================================
 
 import base64
@@ -37,7 +38,7 @@ pd.set_option("display.width", 220)
 pd.set_option("display.float_format", lambda x: f"{x:,.4f}")
 
 # ======================================================================================
-# 3) CONFIGURAÃ‡Ã•ES DO MOTOR INTEGRADO
+# 3) CONFIGURAÇÕES DO MOTOR INTEGRADO
 # ======================================================================================
 
 from datetime import date, datetime, timedelta
@@ -50,9 +51,9 @@ from lxml import etree
 from scipy.optimize import brentq
 
 # Universo B3 monitorado.
-# Mantemos BOVA11, que jÃ¡ fazia parte do GEX, e acrescentamos todos os ativos B3
-# mostrados no painel GARCH. BTC-USD fica apenas na camada de exibiÃ§Ã£o porque o
-# motor GEX desta versÃ£o usa exclusivamente opÃ§Ãµes negociadas na B3.
+# Mantemos BOVA11, que já fazia parte do GEX, e acrescentamos todos os ativos B3
+# mostrados no painel GARCH. BTC-USD fica apenas na camada de exibição porque o
+# motor GEX desta versão usa exclusivamente opções negociadas na B3.
 ATIVOS_B3 = [
     "PSSA3",
     "BBSE3",
@@ -81,8 +82,8 @@ ATIVOS_EXIBICAO = ATIVOS_B3 + [
     "BTC-USD",
 ]
 
-# Mantemos o nome ATIVOS_PILOTO como alias interno para nÃ£o alterar a matemÃ¡tica
-# jÃ¡ validada em funÃ§Ãµes antigas que usam esse identificador.
+# Mantemos o nome ATIVOS_PILOTO como alias interno para não alterar a matemática
+# já validada em funções antigas que usam esse identificador.
 ATIVOS_PILOTO = ATIVOS_B3.copy()
 
 ASSET_INFO = {
@@ -91,9 +92,9 @@ ASSET_INFO = {
     "CXSE3": {"empresa": "Caixa Seguridade", "setor": "Seguros"},
     "BBAS3": {"empresa": "Banco do Brasil", "setor": "Bancos"},
     "EGIE3": {"empresa": "Engie Brasil", "setor": "Energia"},
-    "ITSA4": {"empresa": "ItaÃºsa PN", "setor": "Holding"},
+    "ITSA4": {"empresa": "Itaúsa PN", "setor": "Holding"},
     "EQTL3": {"empresa": "Equatorial Energia", "setor": "Energia"},
-    "ITUB4": {"empresa": "ItaÃº Unibanco", "setor": "Bancos"},
+    "ITUB4": {"empresa": "Itaú Unibanco", "setor": "Bancos"},
     "BBDC4": {"empresa": "Bradesco PN", "setor": "Bancos"},
     "CPFE3": {"empresa": "CPFL Energia", "setor": "Energia"},
     "ABEV3": {"empresa": "Ambev", "setor": "Consumo"},
@@ -101,66 +102,66 @@ ASSET_INFO = {
     "SBSP3": {"empresa": "Sabesp", "setor": "Saneamento"},
     "CPLE3": {"empresa": "Copel", "setor": "Energia"},
     "BPAC11": {"empresa": "BTG Pactual", "setor": "Bancos"},
-    "VALE3": {"empresa": "Vale", "setor": "MineraÃ§Ã£o"},
+    "VALE3": {"empresa": "Vale", "setor": "Mineração"},
     "B3SA3": {"empresa": "B3", "setor": "Mercado Financeiro"},
     "GGBR4": {"empresa": "Gerdau PN", "setor": "Siderurgia"},
-    "PETR4": {"empresa": "Petrobras PN", "setor": "PetrÃ³leo e GÃ¡s"},
-    "WEGE3": {"empresa": "WEG", "setor": "IndÃºstria"},
+    "PETR4": {"empresa": "Petrobras PN", "setor": "Petróleo e Gás"},
+    "WEGE3": {"empresa": "WEG", "setor": "Indústria"},
     "BOVA11": {"empresa": "BOVA11", "setor": "ETF"},
     "BTC-USD": {"empresa": "Bitcoin", "setor": "Criptoativos"},
 }
 
-# Procura automaticamente a Ãºltima data em que Cadastro + PriceReport
-# estiverem disponÃ­veis na mesma sessÃ£o.
+# Procura automaticamente a última data em que Cadastro + PriceReport
+# estiverem disponíveis na mesma sessão.
 RETROCEDER_DIAS = 10
 
-# Mantemos o mesmo universo matemÃ¡tico jÃ¡ validado nas Etapas 2 e 3.
+# Mantemos o mesmo universo matemático já validado nas Etapas 2 e 3.
 MAX_DIAS_ATE_VENCIMENTO = 180
 MONEYNESS_MINIMO = 0.50
 MONEYNESS_MAXIMO = 1.50
 
-# HipÃ³tese plana jÃ¡ usada e validada no protÃ³tipo.
-# EstÃ¡ concentrada em uma Ãºnica configuraÃ§Ã£o para futura troca por curva DI.
+# Hipótese plana já usada e validada no protótipo.
+# Está concentrada em uma única configuração para futura troca por curva DI.
 TAXA_LIVRE_RISCO_ANUAL = 0.1415
 
-# Faixa de cenÃ¡rio do Gamma Flip.
+# Faixa de cenário do Gamma Flip.
 FAIXA_FLIP_INFERIOR = 0.70
 FAIXA_FLIP_SUPERIOR = 1.30
 PONTOS_CURVA_FLIP = 201
 
 # Walls.
 # A tabela principal continua enxuta e mostra apenas a Wall principal.
-# No detalhe, o radar mostra atÃ© trÃªs regiÃµes distintas de concentraÃ§Ã£o.
+# No detalhe, o radar mostra até três regiões distintas de concentração.
 NUM_WALLS_DETALHE = 3
 
-# Para nÃ£o chamar trÃªs strikes quase colados de trÃªs Walls diferentes,
-# exigimos separaÃ§Ã£o mÃ­nima baseada na prÃ³pria malha de strikes:
-# duas vezes o espaÃ§amento tÃ­pico (percentil 75 dos intervalos positivos).
+# Para não chamar três strikes quase colados de três Walls diferentes,
+# exigimos separação mínima baseada na própria malha de strikes:
+# duas vezes o espaçamento típico (percentil 75 dos intervalos positivos).
 WALL_GAP_MULTIPLIER = 2.0
 
 # Camada de leitura / triagem.
-# SÃ£o classificaÃ§Ãµes de DISTÃ‚NCIA, nÃ£o sinais de compra ou venda.
+# São classificações de DISTÂNCIA, não sinais de compra ou venda.
 PROXIMIDADE_EM_CIMA_PCT = 0.50
 PROXIMIDADE_MUITO_PROXIMO_PCT = 1.00
 PROXIMIDADE_PROXIMO_PCT = 2.00
 
-# Call Wall principal e Put Wall principal sÃ£o consideradas em confluÃªncia
+# Call Wall principal e Put Wall principal são consideradas em confluência
 # quando caem no mesmo centavo.
 CONFLUENCIA_WALL_ATOL = 0.01
 
-# HistÃ³rico COTAHIST usado no grÃ¡fico de preÃ§o.
-# O grÃ¡fico Ã© SINCRONIZADO ao horizonte GEX:
-#   30 dias  -> 30 pregÃµes no grÃ¡fico + GEX de opÃ§Ãµes com DTE de 1 a 30 dias
-#   60 dias  -> 60 pregÃµes no grÃ¡fico + GEX de opÃ§Ãµes com DTE de 31 a 60 dias
-#   90 dias  -> 90 pregÃµes no grÃ¡fico + GEX de opÃ§Ãµes com DTE de 61 a 90 dias
-#   180 dias -> 180 pregÃµes no grÃ¡fico + GEX de opÃ§Ãµes com DTE de 91 a 180 dias
-# Os quatro recortes sÃ£o independentes, nÃ£o cumulativos e nÃ£o se sobrepÃµem.
+# Histórico COTAHIST usado no gráfico de preço.
+# O gráfico é SINCRONIZADO ao horizonte GEX:
+#   30 dias  -> 30 pregões no gráfico + GEX de opções com DTE de 1 a 30 dias
+#   60 dias  -> 60 pregões no gráfico + GEX de opções com DTE de 31 a 60 dias
+#   90 dias  -> 90 pregões no gráfico + GEX de opções com DTE de 61 a 90 dias
+#   180 dias -> 180 pregões no gráfico + GEX de opções com DTE de 91 a 180 dias
+# Os quatro recortes são independentes, não cumulativos e não se sobrepõem.
 MAX_HISTORICO_PREGOES = MAX_DIAS_ATE_VENCIMENTO
 
-# Normalmente deixe None. Serve apenas para auditoria histÃ³rica manual.
+# Normalmente deixe None. Serve apenas para auditoria histórica manual.
 DATA_REFERENCIA_MANUAL = None
 
-# Cache local do Colab: rÃ¡pido para extraÃ§Ã£o e cÃ¡lculo.
+# Cache local do Colab: rápido para extração e cálculo.
 MODULE_DIR = Path(__file__).resolve().parent
 INTEGRATED_DIR = Path(
     os.environ.get(
@@ -178,7 +179,7 @@ HISTORY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ======================================================================================
-# 4) DOWNLOAD E LEITURA DOS ARQUIVOS PÃšBLICOS DA B3
+# 4) DOWNLOAD E LEITURA DOS ARQUIVOS PÚBLICOS DA B3
 # ======================================================================================
 
 def current_brazil_date():
@@ -217,11 +218,11 @@ def download_pregao(
     destination,
     force=False,
 ):
-    """Baixa arquivo do Pesquisa por PregÃ£o com cache local atÃ´mico.
+    """Baixa arquivo do Pesquisa por Pregão com cache local atômico.
 
-    Um download novo sÃ³ substitui o cache depois de ser validado como ZIP.
-    Assim, uma falha de rede nÃ£o destrÃ³i uma cÃ³pia vÃ¡lida jÃ¡ existente
-    durante a sessÃ£o atual do Colab.
+    Um download novo só substitui o cache depois de ser validado como ZIP.
+    Assim, uma falha de rede não destrói uma cópia válida já existente
+    durante a sessão atual do Colab.
     """
     destination = Path(destination)
     destination.parent.mkdir(
@@ -239,7 +240,7 @@ def download_pregao(
     ):
         return (
             True,
-            f"CACHE â€” {destination.stat().st_size / 1024 / 1024:.1f} MB",
+            f"CACHE — {destination.stat().st_size / 1024 / 1024:.1f} MB",
         )
 
     temporary = destination.with_name(
@@ -277,7 +278,7 @@ def download_pregao(
             if cached_is_valid:
                 return (
                     True,
-                    "CACHE PRESERVADO â€” nova resposta vazia",
+                    "CACHE PRESERVADO — nova resposta vazia",
                 )
             return False, "arquivo vazio"
 
@@ -294,7 +295,7 @@ def download_pregao(
             if cached_is_valid:
                 return (
                     True,
-                    "CACHE PRESERVADO â€” nova resposta HTML/bloqueio",
+                    "CACHE PRESERVADO — nova resposta HTML/bloqueio",
                 )
             return False, "resposta HTML/bloqueio"
 
@@ -305,15 +306,15 @@ def download_pregao(
             if cached_is_valid:
                 return (
                     True,
-                    "CACHE PRESERVADO â€” nova resposta nÃ£o Ã© ZIP vÃ¡lido",
+                    "CACHE PRESERVADO — nova resposta não é ZIP válido",
                 )
-            return False, "resposta nÃ£o Ã© ZIP vÃ¡lido"
+            return False, "resposta não é ZIP válido"
 
         temporary.replace(destination)
 
         return (
             True,
-            f"OK â€” {destination.stat().st_size / 1024 / 1024:.1f} MB",
+            f"OK — {destination.stat().st_size / 1024 / 1024:.1f} MB",
         )
 
     except Exception as exc:
@@ -322,8 +323,8 @@ def download_pregao(
         if cached_is_valid:
             return (
                 True,
-                "CACHE PRESERVADO â€” "
-                f"falha na atualizaÃ§Ã£o ({type(exc).__name__})",
+                "CACHE PRESERVADO — "
+                f"falha na atualização ({type(exc).__name__})",
             )
 
         return False, f"{type(exc).__name__}: {exc}"
@@ -441,12 +442,12 @@ def choose_latest_xml(
 
 
 def choose_reference_text(files):
-    """Seleciona o arquivo de PrÃªmio de ReferÃªncia extraÃ­do da sessÃ£o.
+    """Seleciona o arquivo de Prêmio de Referência extraído da sessão.
 
-    O PE Ã© distribuÃ­do pela B3 em contÃªiner ZIP autoextraÃ­vel (.ex_).
-    Depois da extraÃ§Ã£o, o motor validado espera um TXT/CSV. A seleÃ§Ã£o
-    continua sendo pelo maior arquivo, como na V21, mas agora a ausÃªncia
-    do conteÃºdo esperado Ã© tratada antes de aceitar a data como completa.
+    O PE é distribuído pela B3 em contêiner ZIP autoextraível (.ex_).
+    Depois da extração, o motor validado espera um TXT/CSV. A seleção
+    continua sendo pelo maior arquivo, como na V21, mas agora a ausência
+    do conteúdo esperado é tratada antes de aceitar a data como completa.
     """
     candidates = [
         Path(path)
@@ -456,7 +457,7 @@ def choose_reference_text(files):
 
     if not candidates:
         raise FileNotFoundError(
-            "Nenhum TXT/CSV encontrado para PrÃªmio de ReferÃªncia."
+            "Nenhum TXT/CSV encontrado para Prêmio de Referência."
         )
 
     return max(
@@ -466,21 +467,21 @@ def choose_reference_text(files):
 
 
 def extract_and_validate_session(selected_paths, candidate_date):
-    """Extrai e valida semanticamente uma sessÃ£o antes de aceitÃ¡-la.
+    """Extrai e valida semanticamente uma sessão antes de aceitá-la.
 
-    Antes desta correÃ§Ã£o, download_pregao() validava apenas se IN/PR/PE
-    eram contÃªineres ZIP vÃ¡lidos. A B3 pode disponibilizar, durante a
-    formaÃ§Ã£o do fechamento, um ZIP tecnicamente vÃ¡lido mas ainda sem o
+    Antes desta correção, download_pregao() validava apenas se IN/PR/PE
+    eram contêineres ZIP válidos. A B3 pode disponibilizar, durante a
+    formação do fechamento, um ZIP tecnicamente válido mas ainda sem o
     XML/TXT esperado pelo motor. Nesse caso a data era aceita e o erro
     aparecia depois em choose_latest_xml().
 
-    Agora uma data sÃ³ Ã© considerada COMPLETA quando:
-    - IN contÃ©m pelo menos um XML de Cadastro de Instrumentos;
-    - PR contÃ©m pelo menos um XML de PriceReport;
-    - PE contÃ©m pelo menos um TXT/CSV de PrÃªmio de ReferÃªncia.
+    Agora uma data só é considerada COMPLETA quando:
+    - IN contém pelo menos um XML de Cadastro de Instrumentos;
+    - PR contém pelo menos um XML de PriceReport;
+    - PE contém pelo menos um TXT/CSV de Prêmio de Referência.
 
-    Se qualquer conteÃºdo estiver ausente, a data Ã© rejeitada e o motor
-    continua retrocedendo, sem alterar a matemÃ¡tica de IV/Gamma/GEX.
+    Se qualquer conteúdo estiver ausente, a data é rejeitada e o motor
+    continua retrocedendo, sem alterar a matemática de IV/Gamma/GEX.
     """
     candidate_work_dir = WORK_DIR / candidate_date.isoformat()
 
@@ -499,10 +500,10 @@ def extract_and_validate_session(selected_paths, candidate_date):
 
         if not valid_zip_file(path):
             raise FileNotFoundError(
-                f"Arquivo {path.name} nÃ£o Ã© um ZIP vÃ¡lido para a sessÃ£o {candidate_date}."
+                f"Arquivo {path.name} não é um ZIP válido para a sessão {candidate_date}."
             )
 
-        print(f"  Validando conteÃºdo de {path.name}...")
+        print(f"  Validando conteúdo de {path.name}...")
         extracted[source_name] = extract_recursive(
             path,
             candidate_work_dir / source_name,
@@ -530,11 +531,11 @@ def extract_and_validate_session(selected_paths, candidate_date):
 
 
 def invalidate_semantically_bad_cache(path):
-    """Remove apenas um cache ZIP que passou na estrutura mas falhou no conteÃºdo.
+    """Remove apenas um cache ZIP que passou na estrutura mas falhou no conteúdo.
 
-    Isso evita que um ZIP incompleto, porÃ©m tecnicamente vÃ¡lido, seja reutilizado
-    indefinidamente na mesma instÃ¢ncia do Streamlit. Um download vÃ¡lido posterior
-    poderÃ¡ recriar o arquivo normalmente.
+    Isso evita que um ZIP incompleto, porém tecnicamente válido, seja reutilizado
+    indefinidamente na mesma instância do Streamlit. Um download válido posterior
+    poderá recriar o arquivo normalmente.
     """
     try:
         Path(path).unlink(missing_ok=True)
@@ -544,7 +545,7 @@ def invalidate_semantically_bad_cache(path):
 
 
 # ======================================================================================
-# 4.1) HISTÃ“RICO DE PREÃ‡OS B3 â€” COTAHIST
+# 4.1) HISTÓRICO DE PREÇOS B3 — COTAHIST
 # ======================================================================================
 
 def download_cotahist_year(
@@ -552,10 +553,10 @@ def download_cotahist_year(
     year,
     force=False,
 ):
-    """Baixa a sÃ©rie anual COTAHIST da B3 com cache seguro.
+    """Baixa a série anual COTAHIST da B3 com cache seguro.
 
-    O histÃ³rico serve apenas para o grÃ¡fico de preÃ§o do ativo.
-    Uma falha nessa fonte NÃƒO interrompe o motor GEX.
+    O histórico serve apenas para o gráfico de preço do ativo.
+    Uma falha nessa fonte NÃO interrompe o motor GEX.
     """
     year = int(year)
 
@@ -639,7 +640,7 @@ def download_cotahist_year(
             )
 
             last_error = (
-                "resposta nÃ£o Ã© ZIP vÃ¡lido"
+                "resposta não é ZIP válido"
             )
 
         except Exception as exc:
@@ -655,7 +656,7 @@ def download_cotahist_year(
         return destination
 
     raise RuntimeError(
-        "NÃ£o foi possÃ­vel baixar "
+        "Não foi possível baixar "
         f"{filename}: {last_error}"
     )
 
@@ -664,11 +665,11 @@ def parse_cotahist_assets(
     zip_path,
     assets,
 ):
-    """LÃª apenas os ativos necessÃ¡rios no COTAHIST.
+    """Lê apenas os ativos necessários no COTAHIST.
 
     Layout posicional oficial:
-    DATA, CODNEG, TPMERC e preÃ§os OHLC.
-    Para o grÃ¡fico, usamos mercado Ã  vista (TPMERC=010).
+    DATA, CODNEG, TPMERC e preços OHLC.
+    Para o gráfico, usamos mercado à vista (TPMERC=010).
     """
     assets = set(
         str(asset).strip()
@@ -707,7 +708,7 @@ def parse_cotahist_assets(
                 if len(line) < 245:
                     continue
 
-                # 00 = cabeÃ§alho; 99 = trailer; 01 = registro de cotaÃ§Ã£o.
+                # 00 = cabeçalho; 99 = trailer; 01 = registro de cotação.
                 if line[0:2] != "01":
                     continue
 
@@ -724,7 +725,7 @@ def parse_cotahist_assets(
                     .strip()
                 )
 
-                # 010 = mercado Ã  vista.
+                # 010 = mercado à vista.
                 if market_type != "010":
                     continue
 
@@ -867,7 +868,7 @@ def load_b3_price_history(
     reference_date,
     assets,
 ):
-    """Carrega histÃ³rico B3 para o grÃ¡fico, sem tornar o painel dependente dele."""
+    """Carrega histórico B3 para o gráfico, sem tornar o painel dependente dele."""
     reference_date = pd.Timestamp(
         reference_date
     )
@@ -900,9 +901,9 @@ def load_b3_price_history(
             )
         )
 
-        # O arquivo do ano corrente Ã© cumulativo.
-        # Se o cache ainda nÃ£o alcanÃ§ou a data efetiva do painel,
-        # tentamos renovÃ¡-lo uma vez.
+        # O arquivo do ano corrente é cumulativo.
+        # Se o cache ainda não alcançou a data efetiva do painel,
+        # tentamos renová-lo uma vez.
         if not current_frame.empty:
             max_date = (
                 current_frame[
@@ -937,12 +938,12 @@ def load_b3_price_history(
 
     except Exception as exc:
         print(
-            "HistÃ³rico COTAHIST do ano corrente "
-            f"indisponÃ­vel: {type(exc).__name__}: {exc}"
+            "Histórico COTAHIST do ano corrente "
+            f"indisponível: {type(exc).__name__}: {exc}"
         )
 
-    # Se ainda nÃ£o houver histÃ³rico suficiente para o maior horizonte
-    # do painel (atualmente 180 pregÃµes), complementamos com o ano anterior.
+    # Se ainda não houver histórico suficiente para o maior horizonte
+    # do painel (atualmente 180 pregões), complementamos com o ano anterior.
     need_previous_year = True
 
     if frames:
@@ -1008,8 +1009,8 @@ def load_b3_price_history(
 
         except Exception as exc:
             print(
-                "HistÃ³rico COTAHIST do ano anterior "
-                f"indisponÃ­vel: {type(exc).__name__}: {exc}"
+                "Histórico COTAHIST do ano anterior "
+                f"indisponível: {type(exc).__name__}: {exc}"
             )
 
     if not frames:
@@ -1074,7 +1075,7 @@ def child_text(
 
 
 def parse_instruments(path):
-    """LÃª BVBG.028.02 e mapeia opÃ§Ãµes ao ativo-objeto."""
+    """Lê BVBG.028.02 e mapeia opções ao ativo-objeto."""
     ns = "{urn:bvmf.100.02.xsd}"
     option_records = []
     instrument_records = []
@@ -1184,8 +1185,8 @@ def parse_instruments(path):
                     "maturity_date": opt_text("XprtnDt"),
                     "trading_start_date": opt_text("TradgStartDt"),
                     "trading_end_date": opt_text("TradgEndDt"),
-                    # AllcnRndLot Ã© lote de alocaÃ§Ã£o; nÃ£o Ã©
-                    # multiplicador econÃ´mico do GEX.
+                    # AllcnRndLot é lote de alocação; não é
+                    # multiplicador econômico do GEX.
                     "contract_size": opt_text("AllcnRndLot"),
                     "price_factor": opt_text("PricFctr"),
                     "underlying_id": underlying_id,
@@ -1256,8 +1257,8 @@ def parse_instruments(path):
     ].copy()
 
     print(
-        f"    Cadastro concluÃ­do: {len(instruments):,} instrumentos; "
-        f"{len(options):,} opÃ§Ãµes dos ativos B3 monitorados; "
+        f"    Cadastro concluído: {len(instruments):,} instrumentos; "
+        f"{len(options):,} opções dos ativos B3 monitorados; "
         f"{time.time() - started:.1f}s."
     )
 
@@ -1268,7 +1269,7 @@ def parse_instruments(path):
 
 
 def parse_price_report(path):
-    """LÃª BVBG.086.01 PriceReport: preÃ§o, OI, bid/ask e negociaÃ§Ã£o."""
+    """Lê BVBG.086.01 PriceReport: preço, OI, bid/ask e negociação."""
     ns = "{urn:bvmf.217.01.xsd}"
     records = []
     started = time.time()
@@ -1393,7 +1394,7 @@ def parse_price_report(path):
     )
 
     print(
-        f"    PriceReport concluÃ­do: {len(prices):,} instrumentos; "
+        f"    PriceReport concluído: {len(prices):,} instrumentos; "
         f"{time.time() - started:.1f}s."
     )
 
@@ -2352,7 +2353,7 @@ def compute_iv_gamma_gex(pilot):
     )
 
     print(
-        "  Calculando IV de mercado quando a sÃ©rie permite..."
+        "  Calculando IV de mercado quando a série permite..."
     )
 
     market_iv_mask = (
@@ -2414,7 +2415,7 @@ def compute_iv_gamma_gex(pilot):
 
         if position % 500 == 0:
             print(
-                f"    IV: {position:,} sÃ©ries..."
+                f"    IV: {position:,} séries..."
             )
 
     pilot.loc[
@@ -2500,7 +2501,7 @@ def compute_iv_gamma_gex(pilot):
     print(
         f"    IV de mercado aceita: "
         f"{pilot['iv_source'].eq('iv_mercado_calculada').sum():,}; "
-        f"referÃªncia B3: "
+        f"referência B3: "
         f"{pilot['iv_source'].eq('volatilidade_referencia_b3').sum():,}."
     )
 
@@ -2538,9 +2539,9 @@ def compute_iv_gamma_gex(pilot):
         "BSM_PROXY_EXERCICIO_ANTECIPADO",
     )
 
-    # O PriceReport registra quantidade de opÃ§Ãµes/contratos em aberto.
+    # O PriceReport registra quantidade de opções/contratos em aberto.
     # Nos dados reais validados, volume financeiro = quantidade negociada
-    # x preÃ§o mÃ©dio da opÃ§Ã£o. Portanto nÃ£o multiplicamos AllcnRndLot.
+    # x preço médio da opção. Portanto não multiplicamos AllcnRndLot.
     pilot["gross_gamma_1pct"] = (
         pilot["gamma"]
         * pilot["open_interest"]
@@ -2582,9 +2583,9 @@ def compute_iv_gamma_gex(pilot):
 
 
 def run_full_pipeline(force=False):
-    """B3 â†’ arquivos â†’ opÃ§Ãµes â†’ IV/Gamma/GEX. Nenhum ZIP manual."""
+    """B3 → arquivos → opções → IV/Gamma/GEX. Nenhum ZIP manual."""
     print("\n" + "=" * 100)
-    print("GEX RADAR BRASIL â€” ATUALIZAÃ‡ÃƒO INTEGRADA")
+    print("GEX RADAR BRASIL — ATUALIZAÇÃO INTEGRADA")
     print("=" * 100)
 
     requested_date = (
@@ -2680,7 +2681,7 @@ def run_full_pipeline(force=False):
 
             if not ok_pe:
                 print(
-                    "  SessÃ£o ainda incompleta para o GEX; "
+                    "  Sessão ainda incompleta para o GEX; "
                     "tentando a data anterior."
                 )
                 continue
@@ -2691,9 +2692,9 @@ def run_full_pipeline(force=False):
                 "reference": reference_path,
             }
 
-            # CORREÃ‡ÃƒO STREAMLIT / REABERTURA:
-            # nÃ£o basta o contÃªiner ser um ZIP vÃ¡lido. Validamos o conteÃºdo
-            # esperado ANTES de aceitar a data como sessÃ£o completa.
+            # CORREÇÃO STREAMLIT / REABERTURA:
+            # não basta o contêiner ser um ZIP válido. Validamos o conteúdo
+            # esperado ANTES de aceitar a data como sessão completa.
             try:
                 candidate_content = extract_and_validate_session(
                     candidate_paths,
@@ -2701,19 +2702,19 @@ def run_full_pipeline(force=False):
                 )
             except Exception as exc:
                 print(
-                    "  SessÃ£o rejeitada: arquivos compactados disponÃ­veis, "
-                    "mas conteÃºdo interno incompleto/incompatÃ­vel "
+                    "  Sessão rejeitada: arquivos compactados disponíveis, "
+                    "mas conteúdo interno incompleto/incompatível "
                     f"({type(exc).__name__}: {exc})."
                 )
 
-                # Descarta apenas o cache semanticamente invÃ¡lido da data,
+                # Descarta apenas o cache semanticamente inválido da data,
                 # permitindo nova tentativa futura sem reutilizar o mesmo ZIP.
                 message = str(exc)
                 if "Cadastro de Instrumentos" in message or instrument_name in message:
                     invalidate_semantically_bad_cache(instrument_path)
                 if "PriceReport" in message or price_name in message:
                     invalidate_semantically_bad_cache(price_path)
-                if "PrÃªmio de ReferÃªncia" in message or reference_name in message:
+                if "Prêmio de Referência" in message or reference_name in message:
                     invalidate_semantically_bad_cache(reference_path)
 
                 bad_work_dir = WORK_DIR / candidate.isoformat()
@@ -2728,9 +2729,9 @@ def run_full_pipeline(force=False):
                 )
                 continue
 
-            # A volatilidade de referÃªncia da B3 Ã© parte importante do motor
-            # validado. A data sÃ³ Ã© aceita quando IN + PR + PE possuem tambÃ©m
-            # o conteÃºdo interno esperado pelo pipeline.
+            # A volatilidade de referência da B3 é parte importante do motor
+            # validado. A data só é aceita quando IN + PR + PE possuem também
+            # o conteúdo interno esperado pelo pipeline.
             selected_date = candidate
             selected_paths = candidate_paths
             selected_content = candidate_content
@@ -2741,17 +2742,17 @@ def run_full_pipeline(force=False):
 
     if selected_date is None or selected_content is None:
         raise RuntimeError(
-            "NÃ£o foi possÃ­vel obter uma sessÃ£o completa com Cadastro de Instrumentos, "
-            "PriceReport e PrÃªmio de ReferÃªncia dentro da janela pesquisada. "
-            "Arquivos ZIP sem o conteÃºdo interno esperado sÃ£o ignorados automaticamente."
+            "Não foi possível obter uma sessão completa com Cadastro de Instrumentos, "
+            "PriceReport e Prêmio de Referência dentro da janela pesquisada. "
+            "Arquivos ZIP sem o conteúdo interno esperado são ignorados automaticamente."
         )
 
     print(
         f"\nData efetiva selecionada: {selected_date.isoformat()}"
     )
 
-    # A sessÃ£o escolhida jÃ¡ foi extraÃ­da e validada durante a seleÃ§Ã£o.
-    # Reutilizamos exatamente esses arquivos para evitar uma segunda extraÃ§Ã£o.
+    # A sessão escolhida já foi extraída e validada durante a seleção.
+    # Reutilizamos exatamente esses arquivos para evitar uma segunda extração.
     run_work_dir = selected_content["work_dir"]
     extracted = selected_content["extracted"]
     instrument_xml = selected_content["instrument_xml"]
@@ -2770,15 +2771,15 @@ def run_full_pipeline(force=False):
         price_xml
     )
 
-    print("\nLendo PrÃªmio de ReferÃªncia...")
+    print("\nLendo Prêmio de Referência...")
     reference = parse_reference_premium(
         reference_txt
     )
     print(
-        f"    PrÃªmios de referÃªncia: {len(reference):,}."
+        f"    Prêmios de referência: {len(reference):,}."
     )
 
-    print("\nMontando universo utilizÃ¡vel...")
+    print("\nMontando universo utilizável...")
     market_base = build_market_base(
         options,
         prices,
@@ -2786,12 +2787,12 @@ def run_full_pipeline(force=False):
         selected_date,
     )
     print(
-        f"    SÃ©ries B3 monitoradas apÃ³s filtros: {len(market_base):,}."
+        f"    Séries B3 monitoradas após filtros: {len(market_base):,}."
     )
 
     if market_base.empty:
         raise RuntimeError(
-            "Nenhuma sÃ©rie passou pelos filtros do GEX."
+            "Nenhuma série passou pelos filtros do GEX."
         )
 
     print("\nExecutando motor de IV/Gamma/GEX...")
@@ -2803,10 +2804,10 @@ def run_full_pipeline(force=False):
 
     if result.empty:
         raise RuntimeError(
-            "O motor de IV/Gamma nÃ£o produziu sÃ©ries vÃ¡lidas."
+            "O motor de IV/Gamma não produziu séries válidas."
         )
 
-    print("\nResumo da atualizaÃ§Ã£o")
+    print("\nResumo da atualização")
     for asset in ATIVOS_PILOTO:
         chain = result[
             result[
@@ -2815,11 +2816,11 @@ def run_full_pipeline(force=False):
         ]
         if chain.empty:
             print(
-                f"  {asset}: sem sÃ©ries vÃ¡lidas"
+                f"  {asset}: sem séries válidas"
             )
         else:
             print(
-                f"  {asset}: {len(chain):,} sÃ©ries; "
+                f"  {asset}: {len(chain):,} séries; "
                 f"spot {chain['selected_spot_price'].median():.2f}"
             )
 
@@ -2854,20 +2855,20 @@ def run_full_pipeline(force=False):
         ),
         "net_gex_hypothesis": (
             "Calls positivas e puts negativas. "
-            "NÃ£o representa dealer Gamma observado."
+            "Não representa dealer Gamma observado."
         ),
         "gamma_method": (
-            "BSM para exercÃ­cio no vencimento; BSM como proxy "
-            "para contratos que admitem exercÃ­cio antecipado."
+            "BSM para exercício no vencimento; BSM como proxy "
+            "para contratos que admitem exercício antecipado."
         ),
         "open_interest_treatment": (
             "Open interest do PriceReport usado diretamente. "
-            "AllcnRndLot Ã© lote de alocaÃ§Ã£o e nÃ£o Ã© multiplicado no GEX."
+            "AllcnRndLot é lote de alocação e não é multiplicado no GEX."
         ),
     }
 
     print(
-        f"\nAtualizaÃ§Ã£o concluÃ­da com base em {selected_date.isoformat()}."
+        f"\nAtualização concluída com base em {selected_date.isoformat()}."
     )
 
     return result, metadata
@@ -2875,7 +2876,7 @@ def run_full_pipeline(force=False):
 
 
 # ======================================================================================
-# 6) NORMALIZAÃ‡ÃƒO PARA O PAINEL
+# 6) NORMALIZAÇÃO PARA O PAINEL
 # ======================================================================================
 
 def prepare_panel_data(frame):
@@ -2931,8 +2932,8 @@ def prepare_panel_data(frame):
         frame["option_style"]
         .map(
             {
-                "AMER": "ExercÃ­cio antecipado",
-                "EURO": "ExercÃ­cio no vencimento",
+                "AMER": "Exercício antecipado",
+                "EURO": "Exercício no vencimento",
             }
         )
         .fillna(
@@ -2979,7 +2980,7 @@ def prepare_panel_data(frame):
 
 
 # ============================================================
-# RUNTIME â€” preenchido pela interface Streamlit apÃ³s carregar a B3.
+# RUNTIME — preenchido pela interface Streamlit após carregar a B3.
 # ============================================================
 gex_series = pd.DataFrame()
 historical_prices = pd.DataFrame()
@@ -2992,7 +2993,7 @@ DISPLAY_ASSETS = ATIVOS_EXIBICAO.copy()
 
 
 # ======================================================================================
-# 7) CONFIGURAÃ‡ÃƒO DOS HORIZONTES â€” MULTI-HORIZONTE
+# 7) CONFIGURAÇÃO DOS HORIZONTES — MULTI-HORIZONTE
 # ======================================================================================
 
 HORIZONS = {
@@ -3002,8 +3003,8 @@ HORIZONS = {
     "180 dias": 180,
 }
 
-# Faixas exclusivas de DTE usadas no cÃ¡lculo de cada coluna do radar.
-# NÃ£o hÃ¡ acumulaÃ§Ã£o nem sobreposiÃ§Ã£o entre os quatro horizontes.
+# Faixas exclusivas de DTE usadas no cálculo de cada coluna do radar.
+# Não há acumulação nem sobreposição entre os quatro horizontes.
 HORIZON_DTE_RANGES = {
     "30 dias": (1, 30),
     "60 dias": (31, 60),
@@ -3029,7 +3030,7 @@ HORIZON_SHORT = {
 def chart_trading_days_for_horizon(
     horizon_label,
 ):
-    """Quantidade de pregÃµes do grÃ¡fico correspondente ao recorte GEX."""
+    """Quantidade de pregões do gráfico correspondente ao recorte GEX."""
     horizon_days = int(
         HORIZONS[horizon_label]
     )
@@ -3047,7 +3048,7 @@ def gex_scope_text(
     horizon_label,
     exact_expiry=None,
 ):
-    """Texto curto usado no tÃ­tulo do grÃ¡fico para deixar o recorte explÃ­cito."""
+    """Texto curto usado no título do gráfico para deixar o recorte explícito."""
     if exact_expiry is not None:
         return (
             "GEX: vencimento "
@@ -3061,16 +3062,16 @@ def gex_scope_text(
     ]
 
     return (
-        f"GEX: opÃ§Ãµes com DTE de {dte_min} a {dte_max} dias"
+        f"GEX: opções com DTE de {dte_min} a {dte_max} dias"
     )
 
 # ======================================================================================
-# 7) FUNÃ‡Ã•ES DE FORMATAÃ‡ÃƒO
+# 7) FUNÇÕES DE FORMATAÇÃO
 # ======================================================================================
 
 def br_number(value, decimals=2):
     if value is None or not np.isfinite(value):
-        return "â€”"
+        return "—"
 
     text = f"{value:,.{decimals}f}"
 
@@ -3084,14 +3085,14 @@ def br_number(value, decimals=2):
 
 def br_money(value, decimals=2):
     if value is None or not np.isfinite(value):
-        return "â€”"
+        return "—"
 
     return f"R$ {br_number(value, decimals)}"
 
 
 def compact_brl(value):
     if value is None or not np.isfinite(value):
-        return "â€”"
+        return "—"
 
     sign = "-" if value < 0 else ""
     absolute = abs(float(value))
@@ -3122,7 +3123,7 @@ def compact_brl(value):
 
 def br_pct(value, decimals=2):
     if value is None or not np.isfinite(value):
-        return "â€”"
+        return "—"
 
     prefix = "+" if value > 0 else ""
 
@@ -3135,9 +3136,9 @@ def br_pct(value, decimals=2):
 def format_level(level, spot):
     if level is None or not np.isfinite(level):
         return {
-            "level": "NÃ£o identificado",
-            "distance": "â€”",
-            "distance_pct": "â€”",
+            "level": "Não identificado",
+            "distance": "—",
+            "distance_pct": "—",
         }
 
     distance = level - spot
@@ -3153,14 +3154,14 @@ def format_level(level, spot):
 
 
 # ======================================================================================
-# 8) FUNÃ‡Ã•ES DE CÃLCULO
+# 8) FUNÇÕES DE CÁLCULO
 # ======================================================================================
 
 def filter_horizon(
     frame,
     horizon_label,
 ):
-    """Recorta as opÃ§Ãµes pela faixa exclusiva de DTE do horizonte.
+    """Recorta as opções pela faixa exclusiva de DTE do horizonte.
 
     Regra operacional definida para o radar:
     - 30 dias  -> calendar_days entre 1 e 30, inclusive
@@ -3168,8 +3169,8 @@ def filter_horizon(
     - 90 dias  -> calendar_days entre 61 e 90, inclusive
     - 180 dias -> calendar_days entre 91 e 180, inclusive
 
-    Os horizontes sÃ£o independentes, nÃ£o cumulativos e nÃ£o se sobrepÃµem.
-    Cada sÃ©rie entra em no mÃ¡ximo um dos quatro recortes.
+    Os horizontes são independentes, não cumulativos e não se sobrepõem.
+    Cada série entra em no máximo um dos quatro recortes.
     """
     result = frame.copy()
 
@@ -3197,9 +3198,9 @@ def filter_asset(
         ].eq(asset)
     ].copy()
 
-    # O modo de vencimento especÃ­fico Ã© uma investigaÃ§Ã£o independente do radar
-    # 30/60/90/180. Por isso, quando uma data exata Ã© escolhida, filtramos pela
-    # data de vencimento e nÃ£o aplicamos tambÃ©m o DTE do horizonte.
+    # O modo de vencimento específico é uma investigação independente do radar
+    # 30/60/90/180. Por isso, quando uma data exata é escolhida, filtramos pela
+    # data de vencimento e não aplicamos também o DTE do horizonte.
     if exact_expiry is not None:
         exact_expiry = pd.Timestamp(
             exact_expiry
@@ -3292,7 +3293,7 @@ def wall_separation_threshold(
     by_strike,
     spot,
 ):
-    """Define a separaÃ§Ã£o mÃ­nima entre Walls a partir da malha real de strikes."""
+    """Define a separação mínima entre Walls a partir da malha real de strikes."""
     if by_strike.empty:
         return 0.0
 
@@ -3327,8 +3328,8 @@ def wall_separation_threshold(
     if not len(diffs):
         return 0.0
 
-    # Percentil 75 reduz a influÃªncia de strikes ajustados
-    # extremamente prÃ³ximos entre si.
+    # Percentil 75 reduz a influência de strikes ajustados
+    # extremamente próximos entre si.
     typical_gap = float(
         np.quantile(
             diffs,
@@ -3348,10 +3349,10 @@ def select_distinct_walls(
     spot,
     count=NUM_WALLS_DETALHE,
 ):
-    """Seleciona atÃ© N concentraÃ§Ãµes distintas de Gamma.
+    """Seleciona até N concentrações distintas de Gamma.
 
-    1) Prioriza mÃ¡ximos locais.
-    2) Ordena pela concentraÃ§Ã£o de Gross Gamma.
+    1) Prioriza máximos locais.
+    2) Ordena pela concentração de Gross Gamma.
     3) Impede que strikes praticamente colados sejam chamados de Walls diferentes.
     """
     if (
@@ -3404,7 +3405,7 @@ def select_distinct_walls(
         )
     )
 
-    # MÃ¡ximos locais na malha de strikes.
+    # Máximos locais na malha de strikes.
     local_peak_mask = np.ones(
         len(candidates),
         dtype=bool,
@@ -3513,8 +3514,8 @@ def select_distinct_walls(
         if len(selected) >= count:
             break
 
-    # Caso existam poucos mÃ¡ximos locais, completa com as maiores
-    # concentraÃ§Ãµes restantes, mantendo a mesma regra de separaÃ§Ã£o.
+    # Caso existam poucos máximos locais, completa com as maiores
+    # concentrações restantes, mantendo a mesma regra de separação.
     if len(selected) < count:
         selected_strikes = {
             item["strike"]
@@ -3887,11 +3888,11 @@ def calculate_quality(
 def proximity_status(
     distance_pct,
 ):
-    """Classifica apenas a proximidade matemÃ¡tica ao nÃ­vel estrutural."""
+    """Classifica apenas a proximidade matemática ao nível estrutural."""
     if not np.isfinite(
         distance_pct
     ):
-        return "SEM NÃVEL"
+        return "SEM NÍVEL"
 
     absolute = abs(
         float(
@@ -3900,13 +3901,13 @@ def proximity_status(
     )
 
     if absolute <= PROXIMIDADE_EM_CIMA_PCT:
-        return "EM CIMA DO NÃVEL"
+        return "EM CIMA DO NÍVEL"
 
     if absolute <= PROXIMIDADE_MUITO_PROXIMO_PCT:
-        return "MUITO PRÃ“XIMO"
+        return "MUITO PRÓXIMO"
 
     if absolute <= PROXIMIDADE_PROXIMO_PCT:
-        return "PRÃ“XIMO"
+        return "PRÓXIMO"
 
     return "DISTANTE"
 
@@ -3919,9 +3920,9 @@ def decision_layer_metrics(
     put_walls,
     gamma_flip,
 ):
-    """Organiza as mÃ©tricas jÃ¡ calculadas para leitura rÃ¡pida.
+    """Organiza as métricas já calculadas para leitura rápida.
 
-    NÃ£o cria previsÃ£o direcional nem sinal de compra/venda.
+    Não cria previsão direcional nem sinal de compra/venda.
     """
     gross_gamma = float(
         gross_gamma
@@ -4029,8 +4030,8 @@ def decision_layer_metrics(
 
         candidates.append(
             {
-                "type": "CONFLUÃŠNCIA",
-                "label": "ConfluÃªncia Call/Put W1",
+                "type": "CONFLUÊNCIA",
+                "label": "Confluência Call/Put W1",
                 "level": confluence_level,
                 "distance": distance,
                 "distance_pct": distance_pct,
@@ -4040,7 +4041,7 @@ def decision_layer_metrics(
                 "concentration_text": (
                     "Call "
                     f"{call_share:.2f}%"
-                    " â€¢ Put "
+                    " • Put "
                     f"{put_share:.2f}%"
                 ),
             }
@@ -4107,10 +4108,10 @@ def decision_layer_metrics(
                 }
             )
 
-    # Gamma Flip continua sendo calculado e armazenado nas mÃ©tricas,
-    # mas nÃ£o participa da TRIAGEM PRINCIPAL / zona de atenÃ§Ã£o.
+    # Gamma Flip continua sendo calculado e armazenado nas métricas,
+    # mas não participa da TRIAGEM PRINCIPAL / zona de atenção.
     # A proximidade principal compara somente Call W1, Put W1 e
-    # a confluÃªncia Call/Put W1, conforme definido para a V21.
+    # a confluência Call/Put W1, conforme definido para a V21.
 
     nearest = (
         min(
@@ -4124,14 +4125,14 @@ def decision_layer_metrics(
     )
 
     if nearest is None:
-        nearest_label = "Sem nÃ­vel"
+        nearest_label = "Sem nível"
         nearest_type = "NONE"
         nearest_level = np.nan
         nearest_distance = np.nan
         nearest_distance_pct = np.nan
         nearest_abs_distance_pct = np.nan
-        nearest_concentration_text = "â€”"
-        nearest_status = "SEM NÃVEL"
+        nearest_concentration_text = "—"
+        nearest_status = "SEM NÍVEL"
 
     else:
         nearest_label = nearest[
@@ -4200,7 +4201,7 @@ def decision_layer_metrics(
 
         if confluence:
             range_position_pct = np.nan
-            range_location = "CONFLUÃŠNCIA"
+            range_location = "CONFLUÊNCIA"
 
         elif spot < range_low:
             range_position_pct = (
@@ -4306,7 +4307,7 @@ def calculate_metrics(
         )
     )
 
-    # Compatibilidade com tudo que jÃ¡ estava validado:
+    # Compatibilidade com tudo que já estava validado:
     # Call Wall / Put Wall continuam significando a Wall principal.
     call_wall = (
         call_walls[0]["strike"]
@@ -4388,7 +4389,7 @@ metrics_cache = {}
 
 
 def invalidate_metrics_cache():
-    """Invalida somente as mÃ©tricas agregadas por horizonte/vencimento."""
+    """Invalida somente as métricas agregadas por horizonte/vencimento."""
     metrics_cache.clear()
 
 
@@ -4470,7 +4471,7 @@ def summary_for_horizon(
         rows.append(
             {
                 "Ativo": asset,
-                "PreÃ§o": spot,
+                "Preço": spot,
                 "Gross Gamma": metrics[
                     "gross_gamma_1pct"
                 ],
@@ -4487,27 +4488,27 @@ def summary_for_horizon(
                 "Assimetria GEX %": metrics[
                     "gex_asymmetry_pct"
                 ],
-                "NÃ­vel mais prÃ³ximo": metrics[
+                "Nível mais próximo": metrics[
                     "nearest_level_label"
                 ],
-                "NÃ­vel mais prÃ³ximo preÃ§o": metrics[
+                "Nível mais próximo preço": metrics[
                     "nearest_level"
                 ],
-                "Dist. NÃ­vel %": metrics[
+                "Dist. Nível %": metrics[
                     "nearest_distance_pct"
                 ],
-                "Dist. NÃ­vel Abs %": metrics[
+                "Dist. Nível Abs %": metrics[
                     "nearest_abs_distance_pct"
                 ],
                 "Proximidade": metrics[
                     "proximity_status"
                 ],
-                "ConfluÃªncia W1": (
+                "Confluência W1": (
                     "SIM"
                     if metrics[
                         "primary_wall_confluence"
                     ]
-                    else "NÃƒO"
+                    else "NÃO"
                 ),
                 "Call Wall": call_wall,
                 "Dist. Call Wall %": (
@@ -4583,7 +4584,7 @@ def summary_for_horizon(
                         "quality"
                     ]["label"]
                 ),
-                "SÃ©ries": (
+                "Séries": (
                     metrics[
                         "series_count"
                     ]
@@ -4600,16 +4601,16 @@ def summary_for_horizon(
         rows
     )
 
-    # Triagem automÃ¡tica: mais perto de nÃ­vel estrutural principal aparece primeiro.
-    # Isto NÃƒO representa ranking de compra ou venda.
+    # Triagem automática: mais perto de nível estrutural principal aparece primeiro.
+    # Isto NÃO representa ranking de compra ou venda.
     if (
         not summary.empty
-        and "Dist. NÃ­vel Abs %" in summary.columns
+        and "Dist. Nível Abs %" in summary.columns
     ):
         summary = (
             summary.sort_values(
                 [
-                    "Dist. NÃ­vel Abs %",
+                    "Dist. Nível Abs %",
                     "Qualidade",
                 ],
                 ascending=[
@@ -4635,8 +4636,8 @@ def compact_nearest_label(label):
     mapping = {
         "Call Wall 1": "Call W1",
         "Put Wall 1": "Put W1",
-        "ConfluÃªncia Call/Put W1": "Call/Put W1",
-        "Sem nÃ­vel": "N/D",
+        "Confluência Call/Put W1": "Call/Put W1",
+        "Sem nível": "N/D",
     }
     return mapping.get(
         str(label),
@@ -4645,10 +4646,10 @@ def compact_nearest_label(label):
 
 
 def summary_multi_horizon():
-    """ConstrÃ³i uma linha por ativo com 30/60/90/180 dias simultaneamente.
+    """Constrói uma linha por ativo com 30/60/90/180 dias simultaneamente.
 
-    A ordenaÃ§Ã£o considera somente a menor distÃ¢ncia absoluta a Call W1, Put W1
-    ou confluÃªncia Call/Put W1 em qualquer horizonte. W2/W3 nÃ£o entram na triagem.
+    A ordenação considera somente a menor distância absoluta a Call W1, Put W1
+    ou confluência Call/Put W1 em qualquer horizonte. W2/W3 não entram na triagem.
     """
     rows = []
 
@@ -4657,7 +4658,7 @@ def summary_multi_horizon():
             asset,
             {
                 "empresa": asset,
-                "setor": "â€”",
+                "setor": "—",
             },
         )
 
@@ -4665,7 +4666,7 @@ def summary_multi_horizon():
             "Ativo": asset,
             "Empresa": info["empresa"],
             "Setor": info["setor"],
-            "PreÃ§o": np.nan,
+            "Preço": np.nan,
         }
 
         best_abs_distance = np.nan
@@ -4674,11 +4675,11 @@ def summary_multi_horizon():
         best_status = "SEM DADOS"
 
         if asset == "BTC-USD":
-            # NÃ£o fabricamos GEX para BTC-USD. O motor Ã© exclusivamente B3.
+            # Não fabricamos GEX para BTC-USD. O motor é exclusivamente B3.
             for horizon_label in HORIZON_ORDER:
                 short = HORIZON_SHORT[horizon_label]
-                row[f"{short} Wall"] = "N/D â€” sem cadeia GEX B3"
-                row[f"{short} Wall PreÃ§o"] = np.nan
+                row[f"{short} Wall"] = "N/D — sem cadeia GEX B3"
+                row[f"{short} Wall Preço"] = np.nan
                 row[f"{short} Dist %"] = np.nan
                 row[f"{short} Dist Abs %"] = np.nan
                 row[f"{short} Status"] = "SEM DADOS"
@@ -4694,7 +4695,7 @@ def summary_multi_horizon():
 
                 if metrics is None:
                     row[f"{short} Wall"] = "N/D"
-                    row[f"{short} Wall PreÃ§o"] = np.nan
+                    row[f"{short} Wall Preço"] = np.nan
                     row[f"{short} Dist %"] = np.nan
                     row[f"{short} Dist Abs %"] = np.nan
                     row[f"{short} Status"] = "SEM DADOS"
@@ -4702,8 +4703,8 @@ def summary_multi_horizon():
                     row[f"{short} Classe"] = "N/D"
                     continue
 
-                if not np.isfinite(row["PreÃ§o"]):
-                    row["PreÃ§o"] = float(
+                if not np.isfinite(row["Preço"]):
+                    row["Preço"] = float(
                         metrics["spot"]
                     )
 
@@ -4735,7 +4736,7 @@ def summary_multi_horizon():
                 ) else np.nan
 
                 row[f"{short} Wall"] = wall_label
-                row[f"{short} Wall PreÃ§o"] = wall_price
+                row[f"{short} Wall Preço"] = wall_price
                 row[f"{short} Dist %"] = distance_pct
                 row[f"{short} Dist Abs %"] = abs_distance_pct
                 row[f"{short} Status"] = metrics["proximity_status"]
@@ -4766,7 +4767,7 @@ def summary_multi_horizon():
 
         row["Melhor Dist Abs %"] = best_abs_distance
         row["Melhor Qualidade"] = best_quality
-        row["Melhor Horizonte"] = best_horizon or "â€”"
+        row["Melhor Horizonte"] = best_horizon or "—"
         row["Melhor Status"] = best_status
         rows.append(row)
 
@@ -4794,14 +4795,14 @@ def summary_multi_horizon():
 
 
 # ======================================================================================
-# 11) PACOTE DE DIAGNÃ“STICO OPCIONAL
+# 11) PACOTE DE DIAGNÓSTICO OPCIONAL
 # ======================================================================================
 
 EXPORT_DIR = INTEGRATED_DIR / "exports"
 
 
 def build_export_package():
-    """Cria pacote opcional de diagnÃ³stico do radar multi-horizonte de Walls."""
+    """Cria pacote opcional de diagnóstico do radar multi-horizonte de Walls."""
     if EXPORT_DIR.exists():
         shutil.rmtree(
             EXPORT_DIR
@@ -4812,7 +4813,7 @@ def build_export_package():
         exist_ok=True,
     )
 
-    # Resumo longo por horizonte, Ãºtil para auditoria dos valores da V20/V21.
+    # Resumo longo por horizonte, útil para auditoria dos valores da V20/V21.
     summary_exports = []
 
     for horizon_label in HORIZON_ORDER:
@@ -4872,7 +4873,7 @@ def build_export_package():
         ),
         "assets_b3": ASSETS,
         "display_assets": DISPLAY_ASSETS,
-        "btc_usd_gex": "N/D â€” sem cadeia de opÃ§Ãµes B3 compatÃ­vel com este motor",
+        "btc_usd_gex": "N/D — sem cadeia de opções B3 compatível com este motor",
         "horizons": HORIZON_ORDER,
         "horizon_selection": {
             "30 dias": "1 <= calendar_days <= 30",
@@ -4897,7 +4898,7 @@ def build_export_package():
         },
         "net_gex_hypothesis": (
             "Calls positivas e puts negativas. "
-            "Ã‰ uma proxy; nÃ£o representa a posiÃ§Ã£o "
+            "É uma proxy; não representa a posição "
             "observada dos formadores de mercado."
         ),
         "gamma_flip_internal": {
@@ -4907,26 +4908,26 @@ def build_export_package():
         },
         "open_interest_treatment": (
             "Open interest do PriceReport usado diretamente. "
-            "O lote de alocaÃ§Ã£o nÃ£o Ã© multiplicado."
+            "O lote de alocação não é multiplicado."
         ),
         "exercise_style_note": (
-            "AMER/EURO sÃ£o estilos de exercÃ­cio de opÃ§Ãµes "
-            "negociadas na B3. NÃ£o indicam mercado dos EUA."
+            "AMER/EURO são estilos de exercício de opções "
+            "negociadas na B3. Não indicam mercado dos EUA."
         ),
         "walls": {
             "detail_count": NUM_WALLS_DETALHE,
             "selection": (
-                "MÃ¡ximos locais de Gross Gamma, ordenados por concentraÃ§Ã£o, "
-                "com separaÃ§Ã£o mÃ­nima baseada na malha tÃ­pica de strikes."
+                "Máximos locais de Gross Gamma, ordenados por concentração, "
+                "com separação mínima baseada na malha típica de strikes."
             ),
             "main_table": (
-                "Cada horizonte usa o nÃ­vel mais prÃ³ximo somente entre Call W1, "
-                "Put W1 e confluÃªncia Call/Put W1. W2/W3 ficam no detalhe."
+                "Cada horizonte usa o nível mais próximo somente entre Call W1, "
+                "Put W1 e confluência Call/Put W1. W2/W3 ficam no detalhe."
             ),
         },
         "multi_horizon_sort": (
-            "Menor distÃ¢ncia absoluta a uma Wall W1 entre 30/60/90/180 dias; "
-            "em empate, maior qualidade do mesmo horizonte. NÃ£o Ã© sinal de trade."
+            "Menor distância absoluta a uma Wall W1 entre 30/60/90/180 dias; "
+            "em empate, maior qualidade do mesmo horizonte. Não é sinal de trade."
         ),
         "price_history": {
             "source": "B3 COTAHIST",
@@ -4937,8 +4938,8 @@ def build_export_package():
                 "180 dias": 180,
             },
             "note": (
-                "CotaÃ§Ãµes histÃ³ricas sem ajuste por inflaÃ§Ã£o/proventos, "
-                "conforme caracterÃ­stica do arquivo pÃºblico da B3."
+                "Cotações históricas sem ajuste por inflação/proventos, "
+                "conforme característica do arquivo público da B3."
             ),
         },
     }
@@ -5148,7 +5149,7 @@ def proximity_badge(
 def quick_read_html(
     metrics,
 ):
-    """Leitura rÃ¡pida: organizaÃ§Ã£o, nÃ£o sinal de trade."""
+    """Leitura rápida: organização, não sinal de trade."""
     spot = metrics[
         "spot"
     ]
@@ -5172,16 +5173,16 @@ def quick_read_html(
         if np.isfinite(
             nearest_level
         )
-        else "â€”"
+        else "—"
     )
 
     nearest_distance_text = (
-        f"{br_money(nearest_distance)} â€¢ "
+        f"{br_money(nearest_distance)} • "
         f"{br_pct(nearest_distance_pct)}"
         if np.isfinite(
             nearest_distance_pct
         )
-        else "â€”"
+        else "—"
     )
 
     asymmetry_text = (
@@ -5195,7 +5196,7 @@ def quick_read_html(
                 "gex_asymmetry_pct"
             ]
         )
-        else "â€”"
+        else "—"
     )
 
     call_level = metrics.get(
@@ -5212,7 +5213,7 @@ def quick_read_html(
         "primary_wall_confluence"
     ]:
         structure_text = (
-            "ConfluÃªncia Call/Put W1 em "
+            "Confluência Call/Put W1 em "
             + br_money(
                 metrics[
                     "primary_wall_confluence_level"
@@ -5251,7 +5252,7 @@ def quick_read_html(
             and put_distance_pct > 0
         ):
             relative_text = (
-                "PreÃ§o abaixo das duas Walls principais"
+                "Preço abaixo das duas Walls principais"
             )
 
         elif (
@@ -5259,12 +5260,12 @@ def quick_read_html(
             and put_distance_pct < 0
         ):
             relative_text = (
-                "PreÃ§o acima das duas Walls principais"
+                "Preço acima das duas Walls principais"
             )
 
         else:
             relative_text = (
-                "PreÃ§o entre as duas Walls principais"
+                "Preço entre as duas Walls principais"
             )
 
         structure_text = (
@@ -5277,7 +5278,7 @@ def quick_read_html(
                 call_distance_pct
             )
             + ")"
-            + " â€¢ Put W1 "
+            + " • Put W1 "
             + br_money(
                 put_level
             )
@@ -5293,12 +5294,12 @@ def quick_read_html(
 
     else:
         structure_text = (
-            "Walls principais nÃ£o identificadas"
+            "Walls principais não identificadas"
         )
 
     return f"""
       <div class="gex-quick">
-        <div class="gex-quick-title">Leitura RÃ¡pida</div>
+        <div class="gex-quick-title">Leitura Rápida</div>
 
         <div class="gex-quick-grid">
 
@@ -5312,13 +5313,13 @@ def quick_read_html(
           <div class="gex-quick-item">
             <div class="gex-quick-label">Assimetria GEX</div>
             <div class="gex-quick-value">{asymmetry_text}</div>
-            <div class="gex-card-small">|Net GEX| Ã· Gross Gamma</div>
+            <div class="gex-card-small">|Net GEX| ÷ Gross Gamma</div>
           </div>
 
           <div class="gex-quick-item">
-            <div class="gex-quick-label">NÃ­vel estrutural mais prÃ³ximo</div>
+            <div class="gex-quick-label">Nível estrutural mais próximo</div>
             <div class="gex-quick-value">
-              {metrics['nearest_level_label']} â€¢ {nearest_level_text}
+              {metrics['nearest_level_label']} • {nearest_level_text}
             </div>
             <div class="gex-card-small">
               {nearest_distance_text}
@@ -5347,10 +5348,10 @@ def quick_read_html(
             <div class="gex-quick-label">Qualidade</div>
             <div class="gex-quick-value">
               {br_number(metrics['quality']['score'], 1)}
-              â€” {metrics['quality']['label']}
+              — {metrics['quality']['label']}
             </div>
             <div class="gex-card-small">
-              Leitura estrutural; nÃ£o Ã© sinal de compra/venda
+              Leitura estrutural; não é sinal de compra/venda
             </div>
           </div>
 
@@ -5365,7 +5366,7 @@ def summary_multi_table_html(
     if summary.empty:
         return (
             BASE_CSS
-            + "<p>Nenhum dado disponÃ­vel.</p>"
+            + "<p>Nenhum dado disponível.</p>"
         )
 
     rows = []
@@ -5377,7 +5378,7 @@ def summary_multi_table_html(
             f"<td class='base-col'><b>{row['Ativo']}</b></td>",
             f"<td class='base-col'>{row['Empresa']}</td>",
             f"<td class='base-col'>{row['Setor']}</td>",
-            f"<td>{br_money(row['PreÃ§o'])}</td>",
+            f"<td>{br_money(row['Preço'])}</td>",
         ]
 
         for horizon_label in HORIZON_ORDER:
@@ -5390,7 +5391,7 @@ def summary_multi_table_html(
                 "N/D",
             )
             wall_price = row.get(
-                f"{short} Wall PreÃ§o",
+                f"{short} Wall Preço",
                 np.nan,
             )
             distance_pct = row.get(
@@ -5414,7 +5415,7 @@ def summary_multi_table_html(
                 wall_price
             ):
                 wall_text = (
-                    f"{wall_label} â€¢ "
+                    f"{wall_label} • "
                     f"{br_money(wall_price)}"
                 )
             else:
@@ -5427,7 +5428,7 @@ def summary_multi_table_html(
             ):
                 quality_text = (
                     f"Q {br_number(quality, 1)} "
-                    f"â€” {quality_class}"
+                    f"— {quality_class}"
                 )
             else:
                 quality_text = "Q N/D"
@@ -5458,7 +5459,7 @@ def summary_multi_table_html(
 
     subheaders = "".join(
         (
-            "<th class='gex-horizon-start'>Wall W1 mais prÃ³xima</th>"
+            "<th class='gex-horizon-start'>Wall W1 mais próxima</th>"
             "<th>Dist.</th>"
             "<th>Status / Qualidade</th>"
         )
@@ -5471,13 +5472,13 @@ def summary_multi_table_html(
         <div class="gex-wrap">
           <div class="gex-title">GEX Radar Brasil</div>
           <div class="gex-subtitle">
-            Dados de fechamento da B3 â€¢ Data: {REFERENCE_DATE.date().strftime('%d/%m/%Y')}
-            â€¢ 30, 60, 90 e 180 dias calculados simultaneamente
+            Dados de fechamento da B3 • Data: {REFERENCE_DATE.date().strftime('%d/%m/%Y')}
+            • 30, 60, 90 e 180 dias calculados simultaneamente
           </div>
           <div class="gex-banner">
             <b>Radar estrutural de Walls:</b> cada horizonte mostra somente a Wall W1
-            mais prÃ³xima entre Call W1, Put W1 ou confluÃªncia Call/Put W1.
-            W2/W3 permanecem no detalhe. NÃ£o Ã© sinal de compra/venda.
+            mais próxima entre Call W1, Put W1 ou confluência Call/Put W1.
+            W2/W3 permanecem no detalhe. Não é sinal de compra/venda.
           </div>
           <div style="overflow-x:auto">
           <table class="gex-table gex-multi-table">
@@ -5486,7 +5487,7 @@ def summary_multi_table_html(
                 <th class="base-col" rowspan="2">Ativo</th>
                 <th class="base-col" rowspan="2">Empresa</th>
                 <th class="base-col" rowspan="2">Setor</th>
-                <th rowspan="2">PreÃ§o</th>
+                <th rowspan="2">Preço</th>
                 {horizon_headers}
               </tr>
               <tr>
@@ -5499,11 +5500,11 @@ def summary_multi_table_html(
           </table>
           </div>
           <div class="gex-note">
-            OrdenaÃ§Ã£o: primeiro o ativo com menor distÃ¢ncia absoluta a uma Wall W1
+            Ordenação: primeiro o ativo com menor distância absoluta a uma Wall W1
             em qualquer horizonte; em empate, maior qualidade do mesmo recorte.
-            EM CIMA / MUITO PRÃ“XIMO / PRÃ“XIMO / DISTANTE medem apenas distÃ¢ncia.
-            BTC-USD fica visÃ­vel para espelhar a lista do GARCH, mas nÃ£o recebe GEX
-            porque esta versÃ£o usa somente cadeias de opÃ§Ãµes negociadas na B3.
+            EM CIMA / MUITO PRÓXIMO / PRÓXIMO / DISTANTE medem apenas distância.
+            BTC-USD fica visível para espelhar a lista do GARCH, mas não recebe GEX
+            porque esta versão usa somente cadeias de opções negociadas na B3.
           </div>
         </div>
         """
@@ -5569,7 +5570,7 @@ def cards_html(
             call_w1["gamma_1pct"]
         )
         if call_w1 is not None
-        else "â€”"
+        else "—"
     )
 
     put_w1_gamma = (
@@ -5577,7 +5578,7 @@ def cards_html(
             put_w1["gamma_1pct"]
         )
         if put_w1 is not None
-        else "â€”"
+        else "—"
     )
 
     return (
@@ -5587,28 +5588,28 @@ def cards_html(
           <div class="gex-title">{asset}</div>
           <div class="gex-subtitle">
             {(
-                f"Horizonte GEX: {horizon_label} â€¢ HistÃ³rico: {chart_trading_days_for_horizon(horizon_label)} pregÃµes â€¢ Recorte: {expiry_text}"
+                f"Horizonte GEX: {horizon_label} • Histórico: {chart_trading_days_for_horizon(horizon_label)} pregões • Recorte: {expiry_text}"
                 if exact_expiry is None
-                else f"Vencimento especÃ­fico: {expiry_text} â€¢ HistÃ³rico de referÃªncia: {chart_trading_days_for_horizon(horizon_label)} pregÃµes"
+                else f"Vencimento específico: {expiry_text} • Histórico de referência: {chart_trading_days_for_horizon(horizon_label)} pregões"
             )}
           </div>
 
           <div class="gex-banner">
             <b>Recorte efetivamente calculado:</b>
-            {metrics['series_count']} sÃ©ries â€¢
-            {metrics['expiry_count']} vencimentos â€¢
-            Gross {compact_brl(metrics['gross_gamma_1pct'])} â€¢
+            {metrics['series_count']} séries •
+            {metrics['expiry_count']} vencimentos •
+            Gross {compact_brl(metrics['gross_gamma_1pct'])} •
             Net {compact_brl(metrics['net_gex_proxy_1pct'])}
             <br>
             <b>Call W1:</b> {br_money(metrics['call_wall'])}
-            â€¢ Gamma {call_w1_gamma}
+            • Gamma {call_w1_gamma}
             &nbsp;&nbsp;|&nbsp;&nbsp;
             <b>Put W1:</b> {br_money(metrics['put_wall'])}
-            â€¢ Gamma {put_w1_gamma}
+            • Gamma {put_w1_gamma}
             <br>
             <span style="opacity:.72;">
               O mesmo strike pode permanecer como Wall em horizontes diferentes
-              se continuar sendo a maior concentraÃ§Ã£o de Gamma.
+              se continuar sendo a maior concentração de Gamma.
             </span>
           </div>
 
@@ -5617,7 +5618,7 @@ def cards_html(
           <div class="gex-grid">
 
             <div class="gex-card">
-              <div class="gex-card-title">PreÃ§o</div>
+              <div class="gex-card-title">Preço</div>
               <div class="gex-card-value">{br_money(spot)}</div>
               <div class="gex-card-small">Fechamento da base</div>
             </div>
@@ -5640,7 +5641,7 @@ def cards_html(
               <div class="gex-card-title">Call Wall principal</div>
               <div class="gex-card-value">{call_info['level']}</div>
               <div class="gex-card-small">
-                {call_info['distance']} â€¢ {call_info['distance_pct']}
+                {call_info['distance']} • {call_info['distance_pct']}
               </div>
             </div>
 
@@ -5648,17 +5649,17 @@ def cards_html(
               <div class="gex-card-title">Put Wall principal</div>
               <div class="gex-card-value">{put_info['level']}</div>
               <div class="gex-card-small">
-                {put_info['distance']} â€¢ {put_info['distance_pct']}
+                {put_info['distance']} • {put_info['distance_pct']}
               </div>
             </div>
 
             <div class="gex-card">
               <div class="gex-card-title">Qualidade dos dados</div>
               <div class="gex-card-value">
-                {br_number(quality['score'], 1)} â€” {quality['label']}
+                {br_number(quality['score'], 1)} — {quality['label']}
               </div>
               <div class="gex-card-small">
-                {metrics['series_count']} sÃ©ries â€¢ {metrics['expiry_count']} vencimentos
+                {metrics['series_count']} séries • {metrics['expiry_count']} vencimentos
               </div>
             </div>
 
@@ -5742,7 +5743,7 @@ def walls_detail_html(
         <div class="gex-wrap">
           <div class="gex-title" style="font-size:22px">Walls do recorte</div>
           <div class="gex-subtitle">
-            Spot: {br_money(spot)} â€¢ AtÃ© {NUM_WALLS_DETALHE} concentraÃ§Ãµes distintas de calls e puts
+            Spot: {br_money(spot)} • Até {NUM_WALLS_DETALHE} concentrações distintas de calls e puts
           </div>
           <div style="overflow-x:auto">
           <table class="gex-table">
@@ -5750,11 +5751,11 @@ def walls_detail_html(
               <tr>
                 <th>Tipo</th>
                 <th>Ranking</th>
-                <th>NÃ­vel</th>
-                <th>DistÃ¢ncia</th>
-                <th>DistÃ¢ncia %</th>
+                <th>Nível</th>
+                <th>Distância</th>
+                <th>Distância %</th>
                 <th>Proximidade</th>
-                <th>ParticipaÃ§Ã£o no Gamma do lado</th>
+                <th>Participação no Gamma do lado</th>
                 <th>Gross Gamma</th>
               </tr>
             </thead>
@@ -5764,7 +5765,7 @@ def walls_detail_html(
           </table>
           </div>
           <div class="gex-note">
-            O ranking privilegia mÃ¡ximos locais de Gross Gamma e evita classificar
+            O ranking privilegia máximos locais de Gross Gamma e evita classificar
             strikes praticamente colados como Walls diferentes.
           </div>
         </div>
@@ -5773,17 +5774,17 @@ def walls_detail_html(
 
 
 # ======================================================================================
-# 12) GRÃFICOS â€” MATPLOTLIB / PNG
+# 12) GRÁFICOS — MATPLOTLIB / PNG
 # ======================================================================================
 
-# Esta versÃ£o nÃ£o depende de JavaScript para mostrar grÃ¡ficos.
-# Os widgets continuam interativos, mas cada mudanÃ§a de filtro regenera
-# uma imagem PNG dentro do Colab. Isso evita o espaÃ§o em branco observado
+# Esta versão não depende de JavaScript para mostrar gráficos.
+# Os widgets continuam interativos, mas cada mudança de filtro regenera
+# uma imagem PNG dentro do Colab. Isso evita o espaço em branco observado
 # no tablet quando o Plotly era renderizado por callback.
 
 
 def axis_brl_formatter(value, _position=None):
-    """FormataÃ§Ã£o compacta em R$ para eixos de GEX."""
+    """Formatação compacta em R$ para eixos de GEX."""
     absolute = abs(float(value))
     sign = "-" if value < 0 else ""
 
@@ -5813,8 +5814,8 @@ def axis_brl_formatter(value, _position=None):
 
 def default_chart_colors():
     """
-    Usa somente o ciclo padrÃ£o do Matplotlib.
-    Assim nÃ£o dependemos de uma paleta fixa do cÃ³digo.
+    Usa somente o ciclo padrão do Matplotlib.
+    Assim não dependemos de uma paleta fixa do código.
     """
     colors = (
         plt.rcParams[
@@ -5847,10 +5848,10 @@ def add_price_level_lines(
 ):
     """Adiciona Spot e Walls sem duplicar linhas no mesmo strike.
 
-    Quando calls e puts compartilham o mesmo strike, o grÃ¡fico desenha apenas
-    uma linha para esse nÃ­vel e a legenda informa todas as Walls coincidentes.
+    Quando calls e puts compartilham o mesmo strike, o gráfico desenha apenas
+    uma linha para esse nível e a legenda informa todas as Walls coincidentes.
     A tabela detalhada das Walls continua mostrando cada Call/Put separadamente.
-    O Gamma Flip continua calculado, mas nÃ£o Ã© desenhado no grÃ¡fico de preÃ§o.
+    O Gamma Flip continua calculado, mas não é desenhado no gráfico de preço.
     """
     spot = float(
         metrics[
@@ -5886,7 +5887,7 @@ def add_price_level_lines(
         3: 1.4,
     }
 
-    # Agrupar visualmente por centavo. Isso NÃƒO altera o cÃ¡lculo.
+    # Agrupar visualmente por centavo. Isso NÃO altera o cálculo.
     grouped_levels = {}
 
     for side, walls in (
@@ -6009,7 +6010,7 @@ def add_price_level_lines(
             ),
         )
 
-    # Gamma Flip permanece apenas no cÃ¡lculo interno e nÃ£o Ã© desenhado.
+    # Gamma Flip permanece apenas no cálculo interno e não é desenhado.
 
 
 def plot_price_with_gex_levels(
@@ -6020,9 +6021,9 @@ def plot_price_with_gex_levels(
     exact_expiry=None,
 ):
     """
-    Candles do ativo com Spot, atÃ© 3 Call Walls e atÃ© 3 Put Walls.
+    Candles do ativo com Spot, até 3 Call Walls e até 3 Put Walls.
 
-    O Gamma Flip continua sendo calculado, mas nÃ£o Ã© desenhado neste grÃ¡fico.
+    O Gamma Flip continua sendo calculado, mas não é desenhado neste gráfico.
     Retorna uma Figure do Matplotlib, depois convertida em PNG.
     """
     if (
@@ -6094,7 +6095,7 @@ def plot_price_with_gex_levels(
         xrotation=0,
         datetime_format="%d/%m",
         tight_layout=False,
-        ylabel="PreÃ§o (R$)",
+        ylabel="Preço (R$)",
     )
 
     ax = axes[0]
@@ -6104,10 +6105,10 @@ def plot_price_with_gex_levels(
         metrics,
     )
 
-    # TÃ­tulo fora da Ã¡rea das velas.
+    # Título fora da área das velas.
     fig.suptitle(
         (
-            f"{asset} â€” {int(trading_days)} pregÃµes | "
+            f"{asset} — {int(trading_days)} pregões | "
             f"{gex_scope_text(horizon_label, exact_expiry)}"
         ),
         fontsize=15,
@@ -6115,7 +6116,7 @@ def plot_price_with_gex_levels(
         y=0.975,
     )
 
-    # Legenda fora da Ã¡rea principal do preÃ§o para nÃ£o cobrir candles/nÃ­veis.
+    # Legenda fora da área principal do preço para não cobrir candles/níveis.
     handles, labels = (
         ax.get_legend_handles_labels()
     )
@@ -6134,7 +6135,7 @@ def plot_price_with_gex_levels(
             frameon=True,
         )
 
-    # Reservar espaÃ§o para tÃ­tulo e legenda.
+    # Reservar espaço para título e legenda.
     fig.subplots_adjust(
         top=0.90,
         bottom=0.18,
@@ -6296,7 +6297,7 @@ def plot_net_gex_by_strike(
     )
 
     ax.set_title(
-        f"{asset} â€” Net GEX Proxy por strike"
+        f"{asset} — Net GEX Proxy por strike"
     )
 
     ax.set_xlabel(
@@ -6304,7 +6305,7 @@ def plot_net_gex_by_strike(
     )
 
     ax.set_ylabel(
-        "ExposiÃ§Ã£o para movimento de 1%"
+        "Exposição para movimento de 1%"
     )
 
     ax.yaxis.set_major_formatter(
@@ -6443,7 +6444,7 @@ def plot_gross_gamma_calls_puts(
     )
 
     ax.set_title(
-        f"{asset} â€” Gross Gamma por strike"
+        f"{asset} — Gross Gamma por strike"
     )
 
     ax.set_xlabel(
@@ -6451,7 +6452,7 @@ def plot_gross_gamma_calls_puts(
     )
 
     ax.set_ylabel(
-        "ExposiÃ§Ã£o para movimento de 1%"
+        "Exposição para movimento de 1%"
     )
 
     ax.yaxis.set_major_formatter(
@@ -6549,7 +6550,7 @@ def plot_by_expiry(
     )
 
     ax.set_title(
-        f"{asset} â€” Gamma por vencimento"
+        f"{asset} — Gamma por vencimento"
     )
 
     ax.set_xlabel(
@@ -6557,7 +6558,7 @@ def plot_by_expiry(
     )
 
     ax.set_ylabel(
-        "ExposiÃ§Ã£o para movimento de 1%"
+        "Exposição para movimento de 1%"
     )
 
     ax.yaxis.set_major_formatter(
@@ -6589,9 +6590,9 @@ def plot_by_expiry(
 def matplotlib_figure_to_data_uri(
     figure,
 ):
-    """Converte Figure do Matplotlib em PNG embutÃ­vel no widgets.HTML.
+    """Converte Figure do Matplotlib em PNG embutível no widgets.HTML.
 
-    NÃ£o usa JavaScript e nÃ£o cria um Output novo no notebook.
+    Não usa JavaScript e não cria um Output novo no notebook.
     """
     if figure is None:
         return None
@@ -6628,7 +6629,7 @@ def matplotlib_figure_to_data_uri(
 
 def responsive_png_html(
     figure,
-    alt_text="GrÃ¡fico GEX",
+    alt_text="Gráfico GEX",
 ):
     """HTML responsivo para uma Figure Matplotlib."""
     data_uri = (
@@ -6651,7 +6652,7 @@ def responsive_png_html(
 
 
 # ======================================================================================
-# 13) TABELA DE SÃ‰RIES
+# 13) TABELA DE SÉRIES
 # ======================================================================================
 
 def series_table_html(
@@ -6661,7 +6662,7 @@ def series_table_html(
     if chain.empty:
         return (
             BASE_CSS
-            + "<p>Nenhuma sÃ©rie encontrada.</p>"
+            + "<p>Nenhuma série encontrada.</p>"
         )
 
     view = chain.copy()
@@ -6716,14 +6717,14 @@ def series_table_html(
           <table class="gex-table">
             <thead>
               <tr>
-                <th>SÃ©rie</th>
+                <th>Série</th>
                 <th>Tipo</th>
-                <th>ExercÃ­cio</th>
+                <th>Exercício</th>
                 <th>Strike</th>
                 <th>Vencimento</th>
                 <th>Open Interest</th>
-                <th>PreÃ§o usado</th>
-                <th>Fonte do preÃ§o</th>
+                <th>Preço usado</th>
+                <th>Fonte do preço</th>
                 <th>IV usada</th>
                 <th>Gross Gamma</th>
                 <th>Net GEX contrib.</th>
@@ -6735,7 +6736,7 @@ def series_table_html(
           </table>
           </div>
           <div class="gex-note">
-            Exibindo as {min(limit, len(view))} sÃ©ries com maior Gross Gamma no recorte selecionado.
+            Exibindo as {min(limit, len(view))} séries com maior Gross Gamma no recorte selecionado.
           </div>
         </div>
         """
@@ -6762,23 +6763,23 @@ def quality_html(
 
             <div class="gex-card">
               <div class="gex-card-title">Nota</div>
-              <div class="gex-card-value">{br_number(q['score'], 1)} â€” {q['label']}</div>
+              <div class="gex-card-value">{br_number(q['score'], 1)} — {q['label']}</div>
             </div>
 
             <div class="gex-card">
-              <div class="gex-card-title">OI com Gamma vÃ¡lido</div>
+              <div class="gex-card-title">OI com Gamma válido</div>
               <div class="gex-card-value">{br_pct(q['gamma_oi_coverage_pct'])}</div>
             </div>
 
             <div class="gex-card">
-              <div class="gex-card-title">OI com IV vÃ¡lida</div>
+              <div class="gex-card-title">OI com IV válida</div>
               <div class="gex-card-value">{br_pct(q['iv_oi_coverage_pct'])}</div>
             </div>
 
             <div class="gex-card">
-              <div class="gex-card-title">OI com preÃ§o de mercado</div>
+              <div class="gex-card-title">OI com preço de mercado</div>
               <div class="gex-card-value">{br_pct(q['market_price_oi_share_pct'])}</div>
-              <div class="gex-card-small">Midpoint ou Ãºltimo negÃ³cio</div>
+              <div class="gex-card-small">Midpoint ou último negócio</div>
             </div>
 
             <div class="gex-card">
@@ -6787,7 +6788,7 @@ def quality_html(
             </div>
 
             <div class="gex-card">
-              <div class="gex-card-title">SÃ©ries negociadas no dia</div>
+              <div class="gex-card-title">Séries negociadas no dia</div>
               <div class="gex-card-value">{br_pct(q['traded_series_share_pct'])}</div>
             </div>
 
@@ -6797,7 +6798,7 @@ def quality_html(
             </div>
 
             <div class="gex-card">
-              <div class="gex-card-title">OI em exercÃ­cio no vencimento</div>
+              <div class="gex-card-title">OI em exercício no vencimento</div>
               <div class="gex-card-value">{br_pct(q['exercise_at_expiry_oi_share_pct'])}</div>
             </div>
 
@@ -6812,7 +6813,7 @@ def quality_html(
 # ======================================================================================
 
 def methodology_html():
-    """Metodologia e hipÃ³teses do radar estrutural multi-horizonte de Walls."""
+    """Metodologia e hipóteses do radar estrutural multi-horizonte de Walls."""
     rate_pct = (
         RISK_FREE_RATE * 100.0
     )
@@ -6823,143 +6824,143 @@ def methodology_html():
         <div class="gex-wrap gex-method">
           <div class="gex-title">Metodologia</div>
 
-          <p><b>Mercado:</b> o cÃ¡lculo GEX usa somente instrumentos negociados na B3 presentes na base validada. BTC-USD aparece apenas para espelhar a lista visual do painel GARCH e fica como N/D, sem cÃ¡lculo GEX nesta versÃ£o.</p>
+          <p><b>Mercado:</b> o cálculo GEX usa somente instrumentos negociados na B3 presentes na base validada. BTC-USD aparece apenas para espelhar a lista visual do painel GARCH e fica como N/D, sem cálculo GEX nesta versão.</p>
 
           <p>
-            <b>Fontes:</b> Cadastro de Instrumentos, PriceReport e PrÃªmio de ReferÃªncia
-            da prÃ³pria B3, usando dados de fechamento da Ãºltima sessÃ£o completa encontrada.
+            <b>Fontes:</b> Cadastro de Instrumentos, PriceReport e Prêmio de Referência
+            da própria B3, usando dados de fechamento da última sessão completa encontrada.
           </p>
 
           <p>
-            <b>Estilo de exercÃ­cio:</b> quando a base mostra AMER, isso significa apenas
-            que a opÃ§Ã£o pode admitir exercÃ­cio antecipado. NÃ£o significa mercado dos Estados Unidos.
-            EURO significa exercÃ­cio no vencimento.
+            <b>Estilo de exercício:</b> quando a base mostra AMER, isso significa apenas
+            que a opção pode admitir exercício antecipado. Não significa mercado dos Estados Unidos.
+            EURO significa exercício no vencimento.
           </p>
 
           <p>
-            <b>Gross Gamma:</b> exposiÃ§Ã£o agregada calculada por sÃ©rie e somada por strike.
-            A unidade utilizada Ã© a variaÃ§Ã£o aproximada, em reais, do delta agregado para
+            <b>Gross Gamma:</b> exposição agregada calculada por série e somada por strike.
+            A unidade utilizada é a variação aproximada, em reais, do delta agregado para
             um movimento de 1% no ativo.
           </p>
 
           <p>
             <b>Net GEX Proxy:</b> calls recebem sinal positivo e puts sinal negativo.
-            Essa Ã© uma convenÃ§Ã£o de cÃ¡lculo. Os dados pÃºblicos da B3 nÃ£o informam a
-            posiÃ§Ã£o direcional dos formadores de mercado, portanto o indicador nÃ£o Ã©
+            Essa é uma convenção de cálculo. Os dados públicos da B3 não informam a
+            posição direcional dos formadores de mercado, portanto o indicador não é
             dealer Gamma observado.
           </p>
 
           <p>
-            <b>Call Walls:</b> a Call W1 Ã© a maior concentraÃ§Ã£o relevante de Gross Gamma
-            das calls no recorte. O detalhe mantÃ©m atÃ© {NUM_WALLS_DETALHE} concentraÃ§Ãµes
-            distintas. O algoritmo prioriza mÃ¡ximos locais, ordena pelo Gross Gamma e
-            exige separaÃ§Ã£o mÃ­nima baseada na prÃ³pria malha de strikes.
+            <b>Call Walls:</b> a Call W1 é a maior concentração relevante de Gross Gamma
+            das calls no recorte. O detalhe mantém até {NUM_WALLS_DETALHE} concentrações
+            distintas. O algoritmo prioriza máximos locais, ordena pelo Gross Gamma e
+            exige separação mínima baseada na própria malha de strikes.
           </p>
 
           <p>
             <b>Put Walls:</b> seguem a mesma regra das Call Walls. W1 participa da
-            triagem principal; W2 e W3 permanecem no detalhe e no grÃ¡fico de preÃ§o.
+            triagem principal; W2 e W3 permanecem no detalhe e no gráfico de preço.
           </p>
 
           <p>
             <b>Gamma Flip:</b> continua calculado internamente por compatibilidade do
-            motor jÃ¡ validado. NÃ£o participa da tabela principal, da ordenaÃ§Ã£o, dos cards
-            nem dos grÃ¡ficos desta versÃ£o. A leitura operacional fica focada nas Walls.
+            motor já validado. Não participa da tabela principal, da ordenação, dos cards
+            nem dos gráficos desta versão. A leitura operacional fica focada nas Walls.
           </p>
 
           <p>
             <b>Assimetria GEX:</b> |Net GEX Proxy| dividido pelo Gross Gamma, em
-            percentual. Mede quanto da exposiÃ§Ã£o bruta permanece apÃ³s a compensaÃ§Ã£o
-            entre o proxy positivo das calls e o proxy negativo das puts. NÃ£o mede
-            direÃ§Ã£o real dos dealers.
+            percentual. Mede quanto da exposição bruta permanece após a compensação
+            entre o proxy positivo das calls e o proxy negativo das puts. Não mede
+            direção real dos dealers.
           </p>
 
           <p>
-            <b>NÃ­vel estrutural principal mais prÃ³ximo:</b> dentro de cada horizonte,
-            compara somente Call W1 e Put W1. Quando as duas Walls principais estÃ£o no
-            mesmo centavo, o painel as trata como uma Ãºnica confluÃªncia Call/Put W1.
+            <b>Nível estrutural principal mais próximo:</b> dentro de cada horizonte,
+            compara somente Call W1 e Put W1. Quando as duas Walls principais estão no
+            mesmo centavo, o painel as trata como uma única confluência Call/Put W1.
           </p>
 
           <p>
-            <b>ClassificaÃ§Ã£o de proximidade:</b>
-            atÃ© {PROXIMIDADE_EM_CIMA_PCT:.2f}% = EM CIMA DO NÃVEL;
-            acima de {PROXIMIDADE_EM_CIMA_PCT:.2f}% atÃ© {PROXIMIDADE_MUITO_PROXIMO_PCT:.2f}% = MUITO PRÃ“XIMO;
-            acima de {PROXIMIDADE_MUITO_PROXIMO_PCT:.2f}% atÃ© {PROXIMIDADE_PROXIMO_PCT:.2f}% = PRÃ“XIMO;
+            <b>Classificação de proximidade:</b>
+            até {PROXIMIDADE_EM_CIMA_PCT:.2f}% = EM CIMA DO NÍVEL;
+            acima de {PROXIMIDADE_EM_CIMA_PCT:.2f}% até {PROXIMIDADE_MUITO_PROXIMO_PCT:.2f}% = MUITO PRÓXIMO;
+            acima de {PROXIMIDADE_MUITO_PROXIMO_PCT:.2f}% até {PROXIMIDADE_PROXIMO_PCT:.2f}% = PRÓXIMO;
             acima de {PROXIMIDADE_PROXIMO_PCT:.2f}% = DISTANTE.
-            Essa classificaÃ§Ã£o representa somente distÃ¢ncia matemÃ¡tica ao nÃ­vel.
+            Essa classificação representa somente distância matemática ao nível.
           </p>
 
           <p>
-            <b>Multi-horizonte:</b> a base mantÃ©m as sÃ©ries vÃ¡lidas de 1 a 180 dias e
+            <b>Multi-horizonte:</b> a base mantém as séries válidas de 1 a 180 dias e
             divide esse universo em quatro faixas exclusivas de DTE em dias corridos:
-            1â€“30, 31â€“60, 61â€“90 e 91â€“180 dias. Os quatro recortes sÃ£o independentes,
-            nÃ£o cumulativos e nÃ£o se sobrepÃµem; cada sÃ©rie entra em no mÃ¡ximo um horizonte.
-            IV e Gamma sÃ£o calculados uma vez por sÃ©rie; o painel nÃ£o baixa nem recalcula
+            1–30, 31–60, 61–90 e 91–180 dias. Os quatro recortes são independentes,
+            não cumulativos e não se sobrepõem; cada série entra em no máximo um horizonte.
+            IV e Gamma são calculados uma vez por série; o painel não baixa nem recalcula
             os arquivos da B3 quatro vezes. Em cada faixa, o painel recalcula os agregados,
             Gross Gamma, Net GEX Proxy, Walls, Assimetria e Qualidade correspondentes.
           </p>
 
           <p>
-            <b>OrdenaÃ§Ã£o da tabela:</b> procura a menor distÃ¢ncia absoluta a uma Wall W1
-            entre 30, 60, 90 e 180 dias. W2/W3 nÃ£o alteram a posiÃ§Ã£o do ativo na tabela.
-            Em empate de distÃ¢ncia, usa a maior qualidade do mesmo recorte. Isso Ã© uma
-            regra de triagem, nÃ£o um ranking de compra ou venda.
+            <b>Ordenação da tabela:</b> procura a menor distância absoluta a uma Wall W1
+            entre 30, 60, 90 e 180 dias. W2/W3 não alteram a posição do ativo na tabela.
+            Em empate de distância, usa a maior qualidade do mesmo recorte. Isso é uma
+            regra de triagem, não um ranking de compra ou venda.
           </p>
 
           <p>
-            <b>ConfluÃªncias no grÃ¡fico:</b> quando uma Call Wall e uma Put Wall caem
-            no mesmo strike, o grÃ¡fico desenha uma Ãºnica linha para aquele preÃ§o e reÃºne
+            <b>Confluências no gráfico:</b> quando uma Call Wall e uma Put Wall caem
+            no mesmo strike, o gráfico desenha uma única linha para aquele preço e reúne
             os respectivos rankings na legenda. A tabela detalhada continua mostrando
             Call e Put separadamente.
           </p>
 
           <p>
-            <b>Volatilidade implÃ­cita:</b> o motor recalcula IV para opÃ§Ãµes com preÃ§o de
-            mercado confiÃ¡vel quando possÃ­vel. Nas demais sÃ©ries vÃ¡lidas, utiliza a
-            volatilidade publicada no arquivo de prÃªmio de referÃªncia da B3.
+            <b>Volatilidade implícita:</b> o motor recalcula IV para opções com preço de
+            mercado confiável quando possível. Nas demais séries válidas, utiliza a
+            volatilidade publicada no arquivo de prêmio de referência da B3.
           </p>
 
           <p>
             <b>Taxa livre de risco desta base:</b> {br_number(rate_pct, 2)}% a.a.
-            como hipÃ³tese plana atual. A estrutura continua preparada para futura
-            substituiÃ§Ã£o por curva DI por vencimento, sem fazer essa alteraÃ§Ã£o agora.
+            como hipótese plana atual. A estrutura continua preparada para futura
+            substituição por curva DI por vencimento, sem fazer essa alteração agora.
           </p>
 
           <p>
-            <b>OpÃ§Ãµes com exercÃ­cio antecipado:</b> o Gamma Ã© calculado por aproximaÃ§Ã£o
-            BSM. Isso permanece explicitado e nÃ£o Ã© apresentado como Gamma exato de um
-            modelo especÃ­fico para exercÃ­cio antecipado.
+            <b>Opções com exercício antecipado:</b> o Gamma é calculado por aproximação
+            BSM. Isso permanece explicitado e não é apresentado como Gamma exato de um
+            modelo específico para exercício antecipado.
           </p>
 
           <p>
-            <b>Open interest:</b> o valor do PriceReport Ã© usado diretamente.
-            O lote de alocaÃ§Ã£o nÃ£o Ã© multiplicado novamente.
+            <b>Open interest:</b> o valor do PriceReport é usado diretamente.
+            O lote de alocação não é multiplicado novamente.
           </p>
 
           <p>
-            <b>GrÃ¡ficos:</b> 30 dias mostram 30 pregÃµes com Walls calculadas com opÃ§Ãµes
-            de DTE entre 1 e 30 dias; 60 mostram 60 pregÃµes com DTE de 31 a 60; 90 mostram
-            90 pregÃµes com DTE de 61 a 90; e 180 mostram 180 pregÃµes com DTE de 91 a 180.
-            O histÃ³rico Ã© o COTAHIST pÃºblico da B3 e permanece sem ajuste por inflaÃ§Ã£o
+            <b>Gráficos:</b> 30 dias mostram 30 pregões com Walls calculadas com opções
+            de DTE entre 1 e 30 dias; 60 mostram 60 pregões com DTE de 31 a 60; 90 mostram
+            90 pregões com DTE de 61 a 90; e 180 mostram 180 pregões com DTE de 91 a 180.
+            O histórico é o COTAHIST público da B3 e permanece sem ajuste por inflação
             ou proventos.
           </p>
 
           <p>
-            <b>Vencimento especÃ­fico:</b> continua disponÃ­vel apenas como ferramenta de
-            investigaÃ§Ã£o do ativo. Ao escolher uma data, o cÃ¡lculo usa somente as sÃ©ries
-            daquele vencimento dentro do universo mÃ¡ximo de 180 dias.
+            <b>Vencimento específico:</b> continua disponível apenas como ferramenta de
+            investigação do ativo. Ao escolher uma data, o cálculo usa somente as séries
+            daquele vencimento dentro do universo máximo de 180 dias.
           </p>
 
           <p>
             <b>Qualidade:</b> combina cobertura de Gamma/IV por open interest,
-            participaÃ§Ã£o de preÃ§os de mercado, qualidade da estimativa de forward/carry,
-            negociaÃ§Ã£o no dia e participaÃ§Ã£o de contratos de exercÃ­cio no vencimento.
+            participação de preços de mercado, qualidade da estimativa de forward/carry,
+            negociação no dia e participação de contratos de exercício no vencimento.
           </p>
 
           <p>
             <b>Data:</b> {REFERENCE_DATE.date().strftime('%d/%m/%Y')}.
-            O painel usa dados de fechamento. O botÃ£o Atualizar consulta novamente a B3;
-            nÃ£o Ã© tempo real.
+            O painel usa dados de fechamento. O botão Atualizar consulta novamente a B3;
+            não é tempo real.
           </p>
 
         </div>
@@ -6970,10 +6971,10 @@ def methodology_html():
 
 
 # ============================================================
-# INICIALIZAÃ‡ÃƒO DO RUNTIME
+# INICIALIZAÇÃO DO RUNTIME
 # ============================================================
 def initialize_runtime(series: pd.DataFrame, meta: dict, history: pd.DataFrame | None = None) -> None:
-    """Instala no mÃ³dulo a base carregada pela interface e limpa mÃ©tricas agregadas."""
+    """Instala no módulo a base carregada pela interface e limpa métricas agregadas."""
     global gex_series, historical_prices, metadata
     global REFERENCE_DATE, RISK_FREE_RATE, MAX_BASE_DAYS, ASSETS, DISPLAY_ASSETS
 
@@ -6989,7 +6990,7 @@ def initialize_runtime(series: pd.DataFrame, meta: dict, history: pd.DataFrame |
 
 
 def load_complete_bundle(force: bool = False):
-    """Executa a mesma cadeia validada da V21 e devolve sÃ©ries, metadados e COTAHIST."""
+    """Executa a mesma cadeia validada da V21 e devolve séries, metadados e COTAHIST."""
     series, meta = run_full_pipeline(force=force)
     prepared = prepare_panel_data(series)
     reference_date = pd.Timestamp(meta["reference_date"])
