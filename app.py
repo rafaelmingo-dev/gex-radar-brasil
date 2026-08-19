@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V32 FINAL CONSOLIDADO — CORRIGIDO
+# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V32 FINAL CONSOLIDADO
 # 30 / 60 / 90 / 180 dias simultâneos
 # Motor matemático: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
@@ -182,70 +182,16 @@ except Exception as exc:
 # ============================================================
 # 4. FORMATAÇÃO / TABELA
 # ============================================================
-def _numero_finito(value: Any) -> float:
-    """Converte um valor para float finito; caso contrário devolve NaN."""
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return np.nan
-
-    return number if np.isfinite(number) else np.nan
-
-
 def moeda_br(value: float) -> str:
-    number = _numero_finito(value)
-    if not np.isfinite(number):
+    if value is None or not np.isfinite(value):
         return "—"
-    return core.br_money(number)
+    return core.br_money(value)
 
 
 def percentual_br(value: float) -> str:
-    number = _numero_finito(value)
-    if not np.isfinite(number):
+    if value is None or not np.isfinite(value):
         return "—"
-    return core.br_pct(number)
-
-
-def _preco_spot_fallback(asset: str) -> float:
-    """
-    Recupera o spot da própria base GEX/B3 quando a coluna Preço não vier no resumo.
-
-    Prioridade:
-    1) selected_spot_price da gex_series já carregada;
-    2) spot das métricas dos horizontes já calculáveis.
-
-    Não consulta fonte externa e não cria preço estimado.
-    """
-    if not asset or asset in {"—", "BTC-USD"}:
-        return np.nan
-
-    series = getattr(core, "gex_series", None)
-    if isinstance(series, pd.DataFrame) and not series.empty:
-        required = {"underlying_ticker", "selected_spot_price"}
-        if required.issubset(series.columns):
-            values = pd.to_numeric(
-                series.loc[
-                    series["underlying_ticker"].eq(asset),
-                    "selected_spot_price",
-                ],
-                errors="coerce",
-            )
-            values = values[np.isfinite(values) & values.gt(0)]
-            if not values.empty:
-                return float(values.median())
-
-    for horizon_label in core.HORIZON_ORDER:
-        try:
-            _chain, metrics = core.get_metrics(asset, horizon_label)
-        except Exception:
-            metrics = None
-
-        if metrics is not None:
-            spot = _numero_finito(metrics.get("spot", np.nan))
-            if np.isfinite(spot) and spot > 0:
-                return spot
-
-    return np.nan
+    return core.br_pct(value)
 
 
 def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
@@ -257,42 +203,15 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
     - Situação: mostra proximidade e distância percentual.
 
     W2/W3 permanecem integralmente disponíveis no detalhe do ativo.
-
-    A leitura do schema é tolerante para que uma ausência pontual da coluna Preço
-    não derrube o painel. Quando necessário, o preço é recuperado da mesma base
-    B3/GEX instalada no runtime.
     """
     rows = []
 
-    if summary is None or not isinstance(summary, pd.DataFrame):
-        return pd.DataFrame()
-
-    asset_info = getattr(core, "ASSET_INFO", {})
-
     for _, row in summary.iterrows():
-        asset = str(row.get("Ativo", "—")).strip() or "—"
-        info = asset_info.get(
-            asset,
-            {"empresa": asset, "setor": "—"},
-        )
-
-        empresa = row.get("Empresa", info.get("empresa", asset))
-        setor = row.get("Setor", info.get("setor", "—"))
-
-        if pd.isna(empresa):
-            empresa = info.get("empresa", asset)
-        if pd.isna(setor):
-            setor = info.get("setor", "—")
-
-        preco = _numero_finito(row.get("Preço", np.nan))
-        if not np.isfinite(preco):
-            preco = _preco_spot_fallback(asset)
-
         out = {
-            "Ativo": asset,
-            "Empresa": str(empresa),
-            "Setor": str(setor),
-            "Preço": moeda_br(preco),
+            "Ativo": row["Ativo"],
+            "Empresa": row["Empresa"],
+            "Setor": row["Setor"],
+            "Preço": moeda_br(row["Preço"]),
         }
 
         for horizon_label in core.HORIZON_ORDER:
@@ -300,19 +219,12 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
             short = short_raw.upper()
 
             wall_label = str(row.get(f"{short_raw} Wall", "N/D"))
-            wall_price = _numero_finito(
-                row.get(f"{short_raw} Wall Preço", np.nan)
-            )
-            dist = _numero_finito(
-                row.get(f"{short_raw} Dist %", np.nan)
-            )
+            wall_price = row.get(f"{short_raw} Wall Preço", np.nan)
+            dist = row.get(f"{short_raw} Dist %", np.nan)
             status = str(row.get(f"{short_raw} Status", "SEM DADOS"))
 
             if np.isfinite(wall_price):
-                out[f"{short} · W1"] = (
-                    f"{wall_label} • "
-                    f"{moeda_br(wall_price).replace('R$ ', 'R$')}"
-                )
+                out[f"{short} · W1"] = f"{wall_label} • {moeda_br(wall_price).replace('R$ ', 'R$')}"
 
                 status_curto = status
                 if status == "EM CIMA DO NÍVEL":
@@ -320,9 +232,7 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
                 elif status == "MUITO PRÓXIMO":
                     status_curto = "MUITO PRÓX."
 
-                out[f"{short} · Situação"] = (
-                    f"{status_curto} • {percentual_br(dist)}"
-                )
+                out[f"{short} · Situação"] = f"{status_curto} • {percentual_br(dist)}"
             else:
                 out[f"{short} · W1"] = "—"
                 out[f"{short} · Situação"] = "SEM DADOS"
@@ -463,29 +373,15 @@ def renderizar_tabela() -> None:
         st.markdown(
             """
             <div class="instruction-box">
-                Faixas DTE independentes: 30D = 1–30 • 60D = 31–60 • 90D = 61–90 • 180D = 91–180, sem acumulação.
-                W1 no radar principal • W1/W2/W3 ao abrir o ativo. Clique em uma linha para abrir o ativo.
+                30, 60, 90 e 180 dias lado a lado • W1 no radar principal • W1/W2/W3 ao abrir o ativo.
+                Clique em uma linha para abrir o ativo.
             </div>
             """,
             unsafe_allow_html=True,
         )
 
     summary = core.summary_multi_horizon()
-
-    if not isinstance(summary, pd.DataFrame) or summary.empty:
-        st.warning(
-            "O motor GEX não devolveu linhas suficientes para montar o radar nesta execução."
-        )
-        return
-
     display_df = preparar_tabela(summary)
-
-    if display_df.empty:
-        st.warning(
-            "O resumo foi calculado, mas não foi possível montar a tabela principal nesta execução."
-        )
-        return
-
     styler = estilizar_tabela(display_df)
 
     evento = st.dataframe(
@@ -510,9 +406,9 @@ def renderizar_tabela() -> None:
     if selecionadas:
         posicao = selecionadas[0]
 
-        if 0 <= posicao < len(display_df):
+        if 0 <= posicao < len(summary):
             st.session_state.ativo_selecionado = str(
-                display_df.iloc[posicao]["Ativo"]
+                summary.iloc[posicao]["Ativo"]
             )
             st.rerun()
 
@@ -524,7 +420,6 @@ def renderizar_tabela() -> None:
             do mesmo recorte.
             <br><b>Status:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
             ≤2,00% PRÓXIMO • acima de 2,00% DISTANTE.
-            <br><b>Faixas DTE:</b> 1–30 / 31–60 / 61–90 / 91–180, independentes e sem sobreposição.
             <br><b>Radar:</b> somente W1. <b>Detalhe do ativo:</b> W1, W2 e W3 completos.
             As cores indicam apenas proximidade estrutural, não compra, venda, suporte ou resistência.
         </div>
