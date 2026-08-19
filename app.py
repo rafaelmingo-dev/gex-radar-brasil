@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 # ============================================================
-# GEX RADAR BRASIL — STREAMLIT MULTI-HORIZONTE — V32 FINAL CONSOLIDADO
-# 30 / 60 / 90 / 180 dias simultâneos
-# Motor matemático: V21 validada no Google Colab.
+# GEX RADAR BRASIL â€” STREAMLIT MULTI-HORIZONTE â€” V32 FINAL CONSOLIDADO
+# 30 / 60 / 90 / 180 dias simultÃ¢neos
+# Motor matemÃ¡tico: V21 validada no Google Colab.
 # Projeto separado do GARCH Radar Brasil.
 # ============================================================
 
@@ -17,11 +17,11 @@ import gex_core as core
 
 
 # ============================================================
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÃ‡ÃƒO DA PÃGINA
 # ============================================================
 st.set_page_config(
     page_title="GEX Radar Brasil",
-    page_icon="📊",
+    page_icon="ðŸ“Š",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -136,7 +136,7 @@ st.markdown(CSS_APP, unsafe_allow_html=True)
 
 
 # ============================================================
-# 2. ESTADO DA SESSÃO
+# 2. ESTADO DA SESSÃƒO
 # ============================================================
 if "ativo_selecionado" not in st.session_state:
     st.session_state.ativo_selecionado = None
@@ -155,13 +155,13 @@ if "diagnostico_nome" not in st.session_state:
 # ============================================================
 @st.cache_resource(show_spinner=False, max_entries=1)
 def carregar_bundle(refresh_token: int):
-    # refresh_token > 0 força nova tentativa de download da sessão mais recente.
+    # refresh_token > 0 forÃ§a nova tentativa de download da sessÃ£o mais recente.
     return core.load_complete_bundle(force=refresh_token > 0)
 
 
 def instalar_runtime():
     with st.spinner(
-        "Buscando a última sessão completa da B3 e calculando IV, Gamma, GEX e Walls..."
+        "Buscando a Ãºltima sessÃ£o completa da B3 e calculando IV, Gamma, GEX e Walls..."
     ):
         series, metadata, history = carregar_bundle(st.session_state.refresh_token)
     core.initialize_runtime(series, metadata, history)
@@ -172,25 +172,25 @@ try:
     metadata = instalar_runtime()
 except Exception as exc:
     st.error(
-        "Não foi possível montar uma sessão completa da B3 para o GEX Radar Brasil. "
-        "O painel não publica dados parciais ou arquivos incompletos."
+        "NÃ£o foi possÃ­vel montar uma sessÃ£o completa da B3 para o GEX Radar Brasil. "
+        "O painel nÃ£o publica dados parciais ou arquivos incompletos."
     )
     st.exception(exc)
     st.stop()
 
 
 # ============================================================
-# 4. FORMATAÇÃO / TABELA
+# 4. FORMATAÃ‡ÃƒO / TABELA
 # ============================================================
 def moeda_br(value: float) -> str:
     if value is None or not np.isfinite(value):
-        return "—"
+        return "â€”"
     return core.br_money(value)
 
 
 def percentual_br(value: float) -> str:
     if value is None or not np.isfinite(value):
-        return "—"
+        return "â€”"
     return core.br_pct(value)
 
 
@@ -199,10 +199,10 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
     Radar principal compacto, pensado para caber integralmente no desktop.
 
     Cada horizonte usa apenas duas colunas:
-    - W1: identifica Call W1, Put W1 ou confluência Call/Put W1 e mostra o nível;
-    - Situação: mostra proximidade e distância percentual.
+    - W1: identifica Call W1, Put W1 ou confluÃªncia Call/Put W1 e mostra o nÃ­vel;
+    - SituaÃ§Ã£o: mostra proximidade e distÃ¢ncia percentual.
 
-    W2/W3 permanecem integralmente disponíveis no detalhe do ativo.
+    W2/W3 permanecem integralmente disponÃ­veis no detalhe do ativo.
     """
     rows = []
 
@@ -211,7 +211,7 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
             "Ativo": row["Ativo"],
             "Empresa": row["Empresa"],
             "Setor": row["Setor"],
-            "Preço": moeda_br(row["Preço"]),
+            "PreÃ§o": moeda_br(row["PreÃ§o"]),
         }
 
         for horizon_label in core.HORIZON_ORDER:
@@ -219,23 +219,23 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
             short = short_raw.upper()
 
             wall_label = str(row.get(f"{short_raw} Wall", "N/D"))
-            wall_price = row.get(f"{short_raw} Wall Preço", np.nan)
+            wall_price = row.get(f"{short_raw} Wall PreÃ§o", np.nan)
             dist = row.get(f"{short_raw} Dist %", np.nan)
             status = str(row.get(f"{short_raw} Status", "SEM DADOS"))
 
             if np.isfinite(wall_price):
-                out[f"{short} · W1"] = f"{wall_label} • {moeda_br(wall_price).replace('R$ ', 'R$')}"
+                out[f"{short} Â· W1"] = f"{wall_label} â€¢ {moeda_br(wall_price).replace('R$ ', 'R$')}"
 
                 status_curto = status
-                if status == "EM CIMA DO NÍVEL":
+                if status == "EM CIMA DO NÃVEL":
                     status_curto = "EM CIMA"
-                elif status == "MUITO PRÓXIMO":
-                    status_curto = "MUITO PRÓX."
+                elif status == "MUITO PRÃ“XIMO":
+                    status_curto = "MUITO PRÃ“X."
 
-                out[f"{short} · Situação"] = f"{status_curto} • {percentual_br(dist)}"
+                out[f"{short} Â· SituaÃ§Ã£o"] = f"{status_curto} â€¢ {percentual_br(dist)}"
             else:
-                out[f"{short} · W1"] = "—"
-                out[f"{short} · Situação"] = "SEM DADOS"
+                out[f"{short} Â· W1"] = "â€”"
+                out[f"{short} Â· SituaÃ§Ã£o"] = "SEM DADOS"
 
         rows.append(out)
 
@@ -244,17 +244,17 @@ def preparar_tabela(summary: pd.DataFrame) -> pd.DataFrame:
 
 def estilizar_tabela(df: pd.DataFrame):
     """
-    Colore somente a coluna Situação de cada horizonte.
-    W1, preço, empresa e setor permanecem neutros para reduzir poluição visual.
+    Colore somente a coluna SituaÃ§Ã£o de cada horizonte.
+    W1, preÃ§o, empresa e setor permanecem neutros para reduzir poluiÃ§Ã£o visual.
     """
     def status_style(value: Any) -> str:
         text = str(value)
 
         if text.startswith("EM CIMA"):
             return "background-color:#fee2e2;color:#991b1b;font-weight:900;"
-        if text.startswith("MUITO PRÓX."):
+        if text.startswith("MUITO PRÃ“X."):
             return "background-color:#ffedd5;color:#9a3412;font-weight:900;"
-        if text.startswith("PRÓXIMO"):
+        if text.startswith("PRÃ“XIMO"):
             return "background-color:#fef3c7;color:#92400e;font-weight:900;"
         if text.startswith("DISTANTE"):
             return "background-color:#f1f5f9;color:#475569;font-weight:800;"
@@ -265,12 +265,12 @@ def estilizar_tabela(df: pd.DataFrame):
 
     styler = df.style
 
-    status_cols = [coluna for coluna in df.columns if coluna.endswith("· Situação")]
+    status_cols = [coluna for coluna in df.columns if coluna.endswith("Â· SituaÃ§Ã£o")]
 
     if status_cols:
         styler = styler.map(status_style, subset=status_cols)
 
-    colunas_destaque = [coluna for coluna in ["Ativo", "Preço"] if coluna in df.columns]
+    colunas_destaque = [coluna for coluna in ["Ativo", "PreÃ§o"] if coluna in df.columns]
 
     if colunas_destaque:
         styler = styler.set_properties(subset=colunas_destaque, **{"font-weight": "800"})
@@ -288,29 +288,29 @@ def estilizar_tabela(df: pd.DataFrame):
 
 def montar_column_config() -> dict:
     """
-    Larguras explícitas em pixels para que nomes e quatro horizontes apareçam completos
+    Larguras explÃ­citas em pixels para que nomes e quatro horizontes apareÃ§am completos
     no desktop sem depender de rolagem horizontal.
     """
     config = {
         "Ativo": st.column_config.TextColumn("Ativo", width=72),
         "Empresa": st.column_config.TextColumn("Empresa", width=170),
         "Setor": st.column_config.TextColumn("Setor", width=150),
-        "Preço": st.column_config.TextColumn("Preço", width=88),
+        "PreÃ§o": st.column_config.TextColumn("PreÃ§o", width=88),
     }
 
     for horizon_label in core.HORIZON_ORDER:
         short = core.HORIZON_SHORT[horizon_label].upper()
 
-        config[f"{short} · W1"] = st.column_config.TextColumn(
-            f"{short} · W1",
+        config[f"{short} Â· W1"] = st.column_config.TextColumn(
+            f"{short} Â· W1",
             width=150,
-            help="Call W1, Put W1 ou confluência Call/Put W1 e o nível principal deste horizonte.",
+            help="Call W1, Put W1 ou confluÃªncia Call/Put W1 e o nÃ­vel principal deste horizonte.",
         )
 
-        config[f"{short} · Situação"] = st.column_config.TextColumn(
-            f"{short} · Situação",
+        config[f"{short} Â· SituaÃ§Ã£o"] = st.column_config.TextColumn(
+            f"{short} Â· SituaÃ§Ã£o",
             width=128,
-            help="Classificação de proximidade e distância percentual até a W1 principal.",
+            help="ClassificaÃ§Ã£o de proximidade e distÃ¢ncia percentual atÃ© a W1 principal.",
         )
 
     return config
@@ -327,18 +327,18 @@ def extrair_linhas_selecionadas(evento: Any) -> list[int]:
 
 
 # ============================================================
-# 5. CABEÇALHO E RADAR PRINCIPAL
+# 5. CABEÃ‡ALHO E RADAR PRINCIPAL
 # ============================================================
 def renderizar_cabecalho() -> None:
     reference_date = pd.Timestamp(metadata["reference_date"]).strftime("%d/%m/%Y")
     st.markdown(
         f"""
         <div class="gex-header">
-            <div class="gex-kicker">GEX • WALLS • B3 • FECHAMENTO</div>
-            <div class="gex-title-main">GEX RADAR BRASIL — 30 • 60 • 90 • 180 DIAS</div>
+            <div class="gex-kicker">GEX â€¢ WALLS â€¢ B3 â€¢ FECHAMENTO</div>
+            <div class="gex-title-main">GEX RADAR BRASIL â€” 30 â€¢ 60 â€¢ 90 â€¢ 180 DIAS</div>
             <div class="gex-subtitle-main">
-                Base B3: {reference_date} • 21 ativos B3 monitorados + Bitcoin visível como N/D
-                • W1 na triagem principal • W2/W3 no detalhe
+                Base B3: {reference_date} â€¢ 21 ativos B3 monitorados + Bitcoin visÃ­vel como N/D
+                â€¢ W1 na triagem principal â€¢ W2/W3 no detalhe
             </div>
         </div>
         """,
@@ -363,7 +363,7 @@ def renderizar_tabela() -> None:
 
     with coluna_botao:
         if st.button(
-            "🔄 ATUALIZAR DADOS B3",
+            "ðŸ”„ ATUALIZAR DADOS B3",
             type="primary",
             use_container_width=True,
         ):
@@ -373,7 +373,7 @@ def renderizar_tabela() -> None:
         st.markdown(
             """
             <div class="instruction-box">
-                30, 60, 90 e 180 dias lado a lado • W1 no radar principal • W1/W2/W3 ao abrir o ativo.
+                30, 60, 90 e 180 dias lado a lado â€¢ W1 no radar principal â€¢ W1/W2/W3 ao abrir o ativo.
                 Clique em uma linha para abrir o ativo.
             </div>
             """,
@@ -415,13 +415,13 @@ def renderizar_tabela() -> None:
     st.markdown(
         """
         <div class="gex-note-streamlit">
-            <b>Ordenação:</b> primeiro aparecem os ativos com menor distância absoluta
+            <b>OrdenaÃ§Ã£o:</b> primeiro aparecem os ativos com menor distÃ¢ncia absoluta
             a uma Wall W1 em qualquer horizonte; em empate, prevalece a maior qualidade
             do mesmo recorte.
-            <br><b>Status:</b> ≤0,50% EM CIMA DO NÍVEL • ≤1,00% MUITO PRÓXIMO •
-            ≤2,00% PRÓXIMO • acima de 2,00% DISTANTE.
+            <br><b>Status:</b> â‰¤0,50% EM CIMA DO NÃVEL â€¢ â‰¤1,00% MUITO PRÃ“XIMO â€¢
+            â‰¤2,00% PRÃ“XIMO â€¢ acima de 2,00% DISTANTE.
             <br><b>Radar:</b> somente W1. <b>Detalhe do ativo:</b> W1, W2 e W3 completos.
-            As cores indicam apenas proximidade estrutural, não compra, venda, suporte ou resistência.
+            As cores indicam apenas proximidade estrutural, nÃ£o compra, venda, suporte ou resistÃªncia.
         </div>
         """,
         unsafe_allow_html=True,
@@ -432,11 +432,11 @@ def renderizar_tabela() -> None:
 # 6. DETALHE DO ATIVO
 # ============================================================
 VIEW_OPTIONS = [
-    "Preço + Níveis",
+    "PreÃ§o + NÃ­veis",
     "Net GEX / Strike",
     "Gross Gamma",
     "Vencimentos",
-    "Séries",
+    "SÃ©ries",
     "Qualidade",
     "Metodologia",
 ]
@@ -468,12 +468,12 @@ def renderizar_html(fragmento: str) -> None:
     """
     Renderiza como HTML real os blocos produzidos pelo motor.
 
-    A versão principal usa st.html(), evitando que o parser Markdown interprete
-    a indentação interna dos <div> como bloco de código. Há um fallback seguro:
-    se st.html() não estiver disponível por qualquer motivo, cada linha é
+    A versÃ£o principal usa st.html(), evitando que o parser Markdown interprete
+    a indentaÃ§Ã£o interna dos <div> como bloco de cÃ³digo. HÃ¡ um fallback seguro:
+    se st.html() nÃ£o estiver disponÃ­vel por qualquer motivo, cada linha Ã©
     desindentada antes de seguir para st.markdown(..., unsafe_allow_html=True).
 
-    Isso preserva cards, Leitura Rápida, tabelas de Walls, Séries, Qualidade e
+    Isso preserva cards, Leitura RÃ¡pida, tabelas de Walls, SÃ©ries, Qualidade e
     Metodologia sem exibir tags HTML como texto na tela.
     """
     if fragmento is None:
@@ -504,12 +504,12 @@ def cards_sem_leitura_rapida(
     exact_expiry,
 ) -> str:
     """
-    Mantém o cabeçalho do recorte e os seis cards principais produzidos pelo motor,
-    mas não exibe o bloco "Leitura Rápida" no detalhe do ativo.
+    MantÃ©m o cabeÃ§alho do recorte e os seis cards principais produzidos pelo motor,
+    mas nÃ£o exibe o bloco "Leitura RÃ¡pida" no detalhe do ativo.
 
-    Importante: nenhuma métrica é recalculada ou descartada. A função altera apenas
-    a apresentação do HTML retornado por core.cards_html(). As Walls W1/W2/W3,
-    Gross Gamma, Net GEX Proxy, qualidade, séries e demais cálculos permanecem no
+    Importante: nenhuma mÃ©trica Ã© recalculada ou descartada. A funÃ§Ã£o altera apenas
+    a apresentaÃ§Ã£o do HTML retornado por core.cards_html(). As Walls W1/W2/W3,
+    Gross Gamma, Net GEX Proxy, qualidade, sÃ©ries e demais cÃ¡lculos permanecem no
     motor e no detalhe apropriado.
     """
     html = str(
@@ -532,8 +532,8 @@ def cards_sem_leitura_rapida(
 
 def renderizar_grafico(fig) -> None:
     """
-    Exibe os gráficos um pouco menores e centralizados, conforme solicitado.
-    Usa aproximadamente 86% da largura útil e não altera nenhuma informação do gráfico.
+    Exibe os grÃ¡ficos um pouco menores e centralizados, conforme solicitado.
+    Usa aproximadamente 86% da largura Ãºtil e nÃ£o altera nenhuma informaÃ§Ã£o do grÃ¡fico.
     """
     if fig is None:
         return
@@ -564,7 +564,7 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         )
     )
 
-    if selected_view == "Preço + Níveis":
+    if selected_view == "PreÃ§o + NÃ­veis":
         trading_days = core.chart_trading_days_for_horizon(horizon_label)
         fig = core.plot_price_with_gex_levels(
             asset,
@@ -575,8 +575,8 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
         )
         if fig is None:
             st.warning(
-                "Histórico COTAHIST indisponível nesta execução. "
-                "Os cálculos GEX e as Walls continuam disponíveis."
+                "HistÃ³rico COTAHIST indisponÃ­vel nesta execuÃ§Ã£o. "
+                "Os cÃ¡lculos GEX e as Walls continuam disponÃ­veis."
             )
         else:
             renderizar_grafico(fig)
@@ -600,12 +600,12 @@ def renderizar_slice(asset: str, horizon_label: str, exact_expiry, selected_view
     elif selected_view == "Vencimentos":
         fig = core.plot_by_expiry(asset, chain)
         if fig is None:
-            st.info("Não há dados suficientes para o gráfico por vencimento.")
+            st.info("NÃ£o hÃ¡ dados suficientes para o grÃ¡fico por vencimento.")
         else:
             renderizar_grafico(fig)
             core.plt.close(fig)
 
-    elif selected_view == "Séries":
+    elif selected_view == "SÃ©ries":
         renderizar_html(
             core.series_table_html(chain)
         )
@@ -620,19 +620,19 @@ def renderizar_detalhes(asset: str) -> None:
     topo_esquerda, topo_direita = st.columns([1, 4])
     with topo_esquerda:
         if st.button(
-            "✖ FECHAR ATIVO",
+            "âœ– FECHAR ATIVO",
             type="primary",
             use_container_width=True,
             key="fechar_ativo_top",
         ):
             fechar_detalhes()
     with topo_direita:
-        info = core.ASSET_INFO.get(asset, {"empresa": asset, "setor": "—"})
+        info = core.ASSET_INFO.get(asset, {"empresa": asset, "setor": "â€”"})
         st.markdown(
             f"""
             <div class="instruction-box">
-                <b>{asset} — {info['empresa']}</b> • {info['setor']} •
-                os quatro horizontes são exibidos em sequência. W1/W2/W3 permanecem disponíveis no detalhe e nos gráficos.
+                <b>{asset} â€” {info['empresa']}</b> â€¢ {info['setor']} â€¢
+                os quatro horizontes sÃ£o exibidos em sequÃªncia. W1/W2/W3 permanecem disponÃ­veis no detalhe e nos grÃ¡ficos.
             </div>
             """,
             unsafe_allow_html=True,
@@ -640,24 +640,24 @@ def renderizar_detalhes(asset: str) -> None:
 
     if asset == "BTC-USD":
         st.info(
-            "BTC-USD permanece visível para espelhar a lista do GARCH, mas esta versão "
-            "calcula GEX exclusivamente com cadeias de opções negociadas na B3."
+            "BTC-USD permanece visÃ­vel para espelhar a lista do GARCH, mas esta versÃ£o "
+            "calcula GEX exclusivamente com cadeias de opÃ§Ãµes negociadas na B3."
         )
         return
 
     expiries = expiries_asset(asset)
     expiry_options = [None] + expiries
 
-    # Uso diário do detalhe: mostra diretamente Preço + Níveis.
-    # Os motores e funções auxiliares de Net GEX/Strike, Gross Gamma, Vencimentos,
-    # Séries, Qualidade e Metodologia continuam preservados no código e no core;
-    # apenas o seletor visual foi retirado da tela para reduzir poluição.
-    selected_view = "Preço + Níveis"
+    # Uso diÃ¡rio do detalhe: mostra diretamente PreÃ§o + NÃ­veis.
+    # Os motores e funÃ§Ãµes auxiliares de Net GEX/Strike, Gross Gamma, Vencimentos,
+    # SÃ©ries, Qualidade e Metodologia continuam preservados no cÃ³digo e no core;
+    # apenas o seletor visual foi retirado da tela para reduzir poluiÃ§Ã£o.
+    selected_view = "PreÃ§o + NÃ­veis"
 
     coluna_vazia, col_expiry = st.columns([3, 1])
     with col_expiry:
         exact_expiry = st.selectbox(
-            "Vencimento específico",
+            "Vencimento especÃ­fico",
             expiry_options,
             index=0,
             format_func=lambda x: (
@@ -702,7 +702,7 @@ def renderizar_detalhes(asset: str) -> None:
         )
 
         if st.button(
-            "✖ FECHAR ATIVO",
+            "âœ– FECHAR ATIVO",
             use_container_width=True,
             key="fechar_ativo_bottom_method",
         ):
@@ -712,8 +712,8 @@ def renderizar_detalhes(asset: str) -> None:
 
     if exact_expiry is not None:
         st.info(
-            "Modo de investigação por vencimento específico: o cálculo abaixo usa somente "
-            "as séries desse vencimento dentro do universo máximo de 180 dias."
+            "Modo de investigaÃ§Ã£o por vencimento especÃ­fico: o cÃ¡lculo abaixo usa somente "
+            "as sÃ©ries desse vencimento dentro do universo mÃ¡ximo de 180 dias."
         )
         renderizar_slice(
             asset,
@@ -723,7 +723,7 @@ def renderizar_detalhes(asset: str) -> None:
         )
 
         if st.button(
-            "✖ FECHAR ATIVO",
+            "âœ– FECHAR ATIVO",
             use_container_width=True,
             key="fechar_ativo_bottom_expiry",
         ):
@@ -740,7 +740,7 @@ def renderizar_detalhes(asset: str) -> None:
         )
 
     if st.button(
-        "✖ FECHAR ATIVO",
+        "âœ– FECHAR ATIVO",
         use_container_width=True,
         key="fechar_ativo_bottom",
     ):
@@ -748,14 +748,14 @@ def renderizar_detalhes(asset: str) -> None:
 
 
 # ============================================================
-# 7. DIAGNÓSTICO OPCIONAL
+# 7. DIAGNÃ“STICO OPCIONAL
 # ============================================================
 def renderizar_diagnostico() -> None:
-    with st.expander("Pacote de diagnóstico opcional"):
+    with st.expander("Pacote de diagnÃ³stico opcional"):
         st.caption(
-            "Gera os CSVs por horizonte, resumo multi-horizonte, séries GEX, histórico B3 e metadados."
+            "Gera os CSVs por horizonte, resumo multi-horizonte, sÃ©ries GEX, histÃ³rico B3 e metadados."
         )
-        if st.button("Preparar pacote de diagnóstico"):
+        if st.button("Preparar pacote de diagnÃ³stico"):
             with st.spinner("Montando pacote..."):
                 path = Path(core.build_export_package())
                 st.session_state.diagnostico_bytes = path.read_bytes()
@@ -763,7 +763,7 @@ def renderizar_diagnostico() -> None:
 
         if st.session_state.diagnostico_bytes is not None:
             st.download_button(
-                "Baixar pacote de diagnóstico",
+                "Baixar pacote de diagnÃ³stico",
                 data=st.session_state.diagnostico_bytes,
                 file_name=st.session_state.diagnostico_nome,
                 mime="application/zip",
@@ -771,7 +771,7 @@ def renderizar_diagnostico() -> None:
 
 
 # ============================================================
-# 8. RENDERIZAÇÃO
+# 8. RENDERIZAÃ‡ÃƒO
 # ============================================================
 if st.session_state.ativo_selecionado is None:
     renderizar_tabela()
